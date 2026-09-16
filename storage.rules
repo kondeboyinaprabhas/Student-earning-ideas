@@ -1,0 +1,27 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Whitelisted admin emails
+    function isAdmin() {
+      return request.auth != null && 
+        (request.auth.token.email == 'kondeboyinaprabhas@gmail.com' ||
+         request.auth.token.email == 'admin@studentearningideas.com');
+    }
+
+    // Public read for idea images, admin-only write with image size validation
+    match /ideas/{imageId} {
+      allow read: if true;
+      allow write: if isAdmin() && 
+        request.resource.size < 5 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+    }
+
+    // Public read for recommended resources images, admin-only write
+    match /resources/{imageId} {
+      allow read: if true;
+      allow write: if isAdmin() && 
+        request.resource.size < 5 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+    }
+  }
+}

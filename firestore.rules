@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Whitelisted admin emails
+    function isAdmin() {
+      return request.auth != null && 
+        (request.auth.token.email == 'kondeboyinaprabhas@gmail.com' ||
+         request.auth.token.email == 'admin@studentearningideas.com');
+    }
+
+    // Public contact and idea submissions (anyone can submit, admin can manage)
+    match /submissions/{submissionId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // Recommended resources (public can view active resources, admin can manage)
+    match /recommendedResources/{resourceId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Ideas / Blueprints (public read, admin write)
+    match /ideas/{ideaId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Drafts and scheduled blueprints (admin-only)
+    match /drafts/{draftId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /scheduled/{scheduledId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Admin activity audit log (admin-only)
+    match /adminActivityLog/{logId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Anonymous telemetry write-only for analytics (public create, admin manage)
+    match /analytics/{eventId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+  }
+}

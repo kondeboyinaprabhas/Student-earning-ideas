@@ -3,7 +3,7 @@
 'use client';
 
 import {
-  collection, doc, addDoc, getDoc, getDocs, updateDoc, deleteDoc,
+  collection, doc, addDoc, getDoc, getDocs, updateDoc, deleteDoc, setDoc,
   query, orderBy, limit, startAfter, where, onSnapshot,
   serverTimestamp, Timestamp
 } from 'firebase/firestore';
@@ -16,7 +16,36 @@ export const COLLECTIONS = {
   ACTIVITY_LOG: 'adminActivityLog',
   BLUEPRINTS: 'blueprints',
   RECOMMENDED_RESOURCES: 'recommendedResources',
+  SETTINGS: 'settings',
+  PUSH_SUBSCRIPTIONS: 'pushSubscriptions',
 };
+
+// Global Display Frequency persistence
+export async function getGlobalFrequency() {
+  try {
+    if (!db) return null;
+    const docRef = doc(db, COLLECTIONS.SETTINGS, 'globalFrequency');
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) return null;
+    const data = snap.data();
+    return data?.value ?? null;
+  } catch (err) {
+    console.error('[Firestore] getGlobalFrequency error:', err);
+    return null;
+  }
+}
+
+export async function setGlobalFrequency(value) {
+  try {
+    if (!db) throw new Error('Database not initialized');
+    const docRef = doc(db, COLLECTIONS.SETTINGS, 'globalFrequency');
+    await setDoc(docRef, { value }, { merge: true });
+    return { success: true };
+  } catch (err) {
+    console.error('[Firestore] setGlobalFrequency error:', err);
+    return { success: false, error: err.message };
+  }
+}
 
 // Recommended Resources CRUD
 export async function fetchRecommendedResources() {

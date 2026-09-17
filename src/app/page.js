@@ -5,6 +5,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import IdeaCard from '@/components/IdeaCard';
+import RecommendedResourceCard from '@/components/RecommendedResourceCard';
 import AdUnit from '@/components/AdUnit';
 import SearchModal from '@/components/SearchModal';
 import ScrollGuidance from '@/components/ScrollGuidance';
@@ -15,27 +16,94 @@ import {
   getPublishedIdeas, getSavedIds, getViewedIds, 
   markAsViewed, getMaintenanceConfig 
 } from '@/lib/ideasStore';
+import { fetchRecommendedResources, getGlobalFrequency } from '@/lib/firestoreStore';
 import { trackEvent } from '@/lib/analytics';
-import { X, Sparkles, ShieldAlert, Key } from 'lucide-react';
+import { X, Sparkles } from 'lucide-react';
+import PwaInstallPrompt from '@/components/PwaInstallPrompt';
+import { usePwaInstall } from '@/hooks/usePwaInstall';
+import NotificationPrompt from '@/components/NotificationPrompt';
+import { getPushStatus, subscribeUserToPush } from '@/lib/pushSubscription';
 
 export default function HomePage() {
   const router = useRouter();
+  const {
+    isVisible: isPwaPromptVisible,
+    promptIdea: pwaPromptIdea,
+    isIos: isPwaIos,
+    triggerOnIdeaView,
+    handleInstall: handlePwaInstall,
+    handleDismiss: handlePwaDismiss,
+  } = usePwaInstall();
   const [rawIdeas, setRawIdeas] = useState([]);
   const [savedIds, setSavedIds] = useState([]);
+  const [recommendedResources, setRecommendedResources] = useState([]);
+  const [globalFrequency, setGlobalFrequency] = useState(7);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
   const [vignetteAdVisible, setVignetteAdVisible] = useState(false);
-  const [scrollCounter, setScrollCounter] = useState(0);
+  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
+  const [viewedIdeaCount, setViewedIdeaCount] = useState(0);
+  const [maintenance, setMaintenance] = useState({ enabled: false, message: '' });
+  const viewedIdeaIds = useRef(new Set());
   const previousScrollY = useRef(0);
+  const notificationDismissed = typeof window !== 'undefined' && localStorage.getItem('notification_prompt_dismissed') === 'true';
+  const notificationShown = typeof window !== 'undefined' && localStorage.getItem('notification_prompt_shown') === 'true';
+  useEffect(() => {
+    if (notificationDismissed || notificationShown) {
+      setShowNotificationPrompt(false);
+    }
+   }, []);
+    const [scrollCounter, setScrollCounter] = useState(0);
+  const handleNotificationClose = () => {
+    setShowNotificationPrompt(false);
+    localStorage.setItem('notification_prompt_dismissed', 'true');
+  };
 
-  // Maintenance mode state
-  const [maintenance, setMaintenance] = useState({ enabled: false });
+    // Online/Offline detection using navigator.onLine only
+  const [isOnline, setIsOnline] = useState(() => {
+    if (typeof navigator === 'undefined') return true;
+    return navigator.onLine;
+  });
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+
 
   useEffect(() => {
     const ideas = getPublishedIdeas();
     setRawIdeas(ideas);
     setSavedIds(getSavedIds());
     setMaintenance(getMaintenanceConfig());
+
+    // Fetch persisted Global Display Frequency and active Recommended Resources
+    const loadResourcesAndFrequency = async () => {
+      try {
+        const [resources, freq] = await Promise.all([
+          fetchRecommendedResources(),
+          getGlobalFrequency(),
+        ]);
+        if (Array.isArray(resources)) {
+          // Use only active Recommended Resources
+          const activeOnly = resources.filter((r) => r.active !== false);
+          setRecommendedResources(activeOnly);
+        }
+        if (typeof freq === 'number' && freq > 0) {
+          setGlobalFrequency(freq);
+        }
+      } catch (err) {
+        console.error('Failed to load recommended resources or global frequency:', err);
+      }
+    };
+
+    loadResourcesAndFrequency();
   }, []);
 
   // Organize feed: Unseen ideas first!
@@ -49,6 +117,38 @@ export default function HomePage() {
     return [...unseen, ...seen];
   }, [rawIdeas]);
 
+  // Interleave active Recommended Resources into the Ideas feed after every N ideas
+  const feedItems = useMemo(() => {
+    if (!sortedFeedIdeas.length) return [];
+    if (!recommendedResources.length || !globalFrequency || globalFrequency < 1) {
+      return sortedFeedIdeas.map((idea) => ({ type: 'idea', data: idea, key: `idea-${idea.id}` }));
+    }
+
+    const items = [];
+    let resourceIdx = 0;
+
+    for (let i = 0; i < sortedFeedIdeas.length; i++) {
+      items.push({
+        type: 'idea',
+        data: sortedFeedIdeas[i],
+        key: `idea-${sortedFeedIdeas[i].id}`
+      });
+
+      // After every N ideas, insert one active Recommended Resource sequentially
+      if ((i + 1) % globalFrequency === 0) {
+        const resource = recommendedResources[resourceIdx % recommendedResources.length];
+        items.push({
+          type: 'resource',
+          data: resource,
+          key: `feed-resource-${resource.id}-${i}`
+        });
+        resourceIdx++;
+      }
+    }
+
+    return items;
+  }, [sortedFeedIdeas, recommendedResources, globalFrequency]);
+
   // Track viewed ideas with IntersectionObserver
   useEffect(() => {
     if (!sortedFeedIdeas.length) return;
@@ -61,6 +161,28 @@ export default function HomePage() {
           const cardId = entry.target.id.replace('card-', '');
           if (cardId) {
             markAsViewed(cardId);
+
+            // Track unique idea views for notification prompt
+            if (!viewedIdeaIds.current.has(cardId)) {
+              viewedIdeaIds.current.add(cardId);
+              setViewedIdeaCount((prev) => {
+                const newCount = prev + 1;
+                if (newCount === 3 && !notificationDismissed && !notificationShown) {
+                  setShowNotificationPrompt(true);
+                  localStorage.setItem('notification_prompt_shown', 'true');
+                }
+                return newCount;
+              });
+            }
+
+            // PWA install prompt trigger: strictly based ONLY on Ideas in feed order
+            // Recommended Resources are never counted as ideas
+            const ideaIndex = sortedFeedIdeas.findIndex(i => i.id === cardId);
+            if (ideaIndex !== -1) {
+              const ideaNumber = ideaIndex + 1;
+              triggerOnIdeaView(ideaNumber);
+            }
+
             // Only count when scrolling down
             const currentScrollY = window.scrollY || document.documentElement.scrollTop || 0;
             if (currentScrollY > previousScrollY.current) {
@@ -92,7 +214,7 @@ export default function HomePage() {
       if (el) observer.observe(el);
     });
 
-    return () => observer.disconnect();
+    return () => { observer.disconnect(); };
   }, [sortedFeedIdeas]);
 
   const showToast = (msg) => {
@@ -140,20 +262,29 @@ export default function HomePage() {
   // Maintenance Screen if active
   if (maintenance.enabled) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 text-white">
-        <div className="bg-slate-900 border border-teal-500/30 rounded-3xl p-6 sm:p-8 max-w-md w-full text-center shadow-2xl space-y-4">
-          <div className="w-14 h-14 bg-teal-500/20 text-teal-400 rounded-2xl flex items-center justify-center mx-auto">
-            <Sparkles className="w-7 h-7" />
+      <>
+        <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 text-white">
+          <div className="bg-slate-900 border border-teal-500/30 rounded-3xl p-6 sm:p-8 max-w-md w-full text-center shadow-2xl space-y-4">
+            <div className="w-14 h-14 bg-teal-500/20 text-teal-400 rounded-2xl flex items-center justify-center mx-auto">
+              <Sparkles className="w-7 h-7" />
+            </div>
+            <h1 className="text-xl font-black text-white">Student Earning Ideas</h1>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              {maintenance.message || "We are polishing new 2026 student earning blueprints. Launching soon!"}
+            </p>
           </div>
-          <h1 className="text-xl font-black text-white">Student Earning Ideas</h1>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            {maintenance.message || "We are polishing new 2026 student earning blueprints. Launching soon!"}
-          </p>
         </div>
-      </div>
+      </>
     );
   }
 
+  if (isOnline === false) {
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-slate-100 text-slate-800">
+      <h1 className="text-2xl font-bold">Internet connection required</h1>
+    </div>
+  );
+}
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col antialiased">
       {/* Premium Frosted Glass Header */}
@@ -170,24 +301,50 @@ export default function HomePage() {
       </div>
 
       {/* Native Full-Screen CSS Snap-Scroll Feed Container */}
-      <main ref={mainFeedRef} className="flex-1 w-full max-w-xl mx-auto overflow-y-auto snap-y snap-mandatory scroll-smooth pb-16">
-        {sortedFeedIdeas.map((idea, index) => (
-          <IdeaCard
-            key={idea.id}
-            idea={idea}
-            index={index}
-            allIdeas={sortedFeedIdeas}
-            onSaveChange={handleSaveChange}
-            onShowToast={showToast}
-            onNavigateToIdea={(slug) => {
-              const target = sortedFeedIdeas.find(i => i.slug === slug);
-              if (target) {
-                const el = document.getElementById(`card-${target.id}`);
-                if (el) el.scrollIntoView({ behavior: 'smooth' });
-              }
-            }}
-          />
-        ))}
+      <main className="flex-1 overflow-y-auto snap-y snap-mandatory">
+        {/* Notification Opt‑In Prompt */}
+        {showNotificationPrompt && (
+          <NotificationPrompt isVisible={showNotificationPrompt} onClose={handleNotificationClose} />
+        )}
+        {feedItems.map((item, index) => {
+          if (item.type === 'idea') {
+            const idea = item.data;
+
+            return (
+              <IdeaCard
+                key={idea.id}
+                idea={idea}
+                index={index}
+                allIdeas={sortedFeedIdeas}
+                onSaveChange={handleSaveChange}
+                onShowToast={showToast}
+                onNavigateToIdea={(slug) => {
+                  const target = sortedFeedIdeas.find(i => i.slug === slug);
+
+                  if (target) {
+                    const el = document.getElementById(`card-${target.id}`);
+
+                    if (el) {
+                      el.scrollIntoView({ behavior: 'smooth' });
+                    }
+                  }
+                }}
+              />
+            );
+          }
+
+          if (item.type === 'resource') {
+            return (
+              <RecommendedResourceCard
+                key={item.key}
+                resource={item.data}
+                index={index}
+              />
+            );
+          }
+
+          return null;
+        })}
 
         {/* Feed Bottom Note */}
         <div className="py-12 px-4 text-center text-xs text-slate-500 space-y-2">
@@ -252,6 +409,15 @@ export default function HomePage() {
           </div>
         </div>
       )}
+
+      {/* PWA Install Prompt Banner (Strict Idea #2 & Idea #10 Triggers) */}
+      <PwaInstallPrompt
+        isVisible={isPwaPromptVisible}
+        promptIdea={pwaPromptIdea}
+        isIos={isPwaIos}
+        onInstall={handlePwaInstall}
+        onDismiss={handlePwaDismiss}
+      />
 
       {/* GDPR / ePrivacy Cookie Consent */}
       <CookieConsent />

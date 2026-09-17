@@ -62,6 +62,13 @@ export default function AdminSidebar({
       icon: History,
       badge: null,
       description: 'Audit trail of admin events'
+    },
+    {
+      id: 'notifications',
+      label: 'Push Broadcast',
+      icon: Bell,
+      badge: null,
+      description: 'Instant web push alerts'
     }
   ];
 

@@ -346,6 +346,21 @@ Links:
       }
 
       if (result.success) {
+        // Trigger background push notification for newly published active resource (non-blocking)
+        if (!isEdit && payload.active) {
+          fetch('/api/admin/push/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: `🛠️ New Recommended Resource: ${payload.title}`,
+              message: payload.description || `Explore ${payload.title} to power your student micro-startup.`,
+              url: payload.affiliateUrl || '/',
+              type: 'resource',
+              adminEmail: 'kondeboyinaprabhas@gmail.com',
+            }),
+          }).catch((e) => console.warn('[Push Hook] Failed to send resource push:', e));
+        }
+
         setToastMessage(isEdit ? 'Resource updated successfully!' : 'Resource published successfully!');
         setTimeout(() => {
           router.push('/admin/recommended-resources');

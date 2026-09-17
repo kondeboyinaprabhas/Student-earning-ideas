@@ -17,6 +17,8 @@ import {
   fetchRecommendedResources,
   updateRecommendedResource,
   deleteRecommendedResource,
+  getGlobalFrequency,
+  setGlobalFrequency,
 } from "@/lib/firestoreStore";
 import AdminAuth from "@/components/admin/AdminAuth";
 
@@ -26,19 +28,32 @@ export default function RecommendedResourcesPage() {
   const [loading, setLoading] = useState(true);
 
   // Global Display Frequency
-  const [globalFrequency, setGlobalFrequency] = useState(7);
+  const [globalFrequency, setGlobalFrequencyState] = useState(7);
 
   // ---------- Load ----------
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const data = await fetchRecommendedResources();
+      const [data, freq] = await Promise.all([
+        fetchRecommendedResources(),
+        getGlobalFrequency(),
+      ]);
       setResources(data);
+      if (typeof freq === 'number' && freq > 0) {
+        setGlobalFrequencyState(freq);
+      }
       setLoading(false);
     };
 
     load();
   }, []);
+
+  // ---------- Save Frequency ----------
+  const handleFrequencyChange = async (e) => {
+    const newVal = Number(e.target.value) || 1;
+    setGlobalFrequencyState(newVal);
+    await setGlobalFrequency(newVal);
+  };
 
   // ---------- Delete ----------
   const handleDelete = async (id) => {
@@ -123,9 +138,7 @@ export default function RecommendedResourcesPage() {
                 type="number"
                 min={1}
                 value={globalFrequency}
-                onChange={(e) =>
-                  setGlobalFrequency(Number(e.target.value) || 1)
-                }
+                onChange={handleFrequencyChange}
                 className="w-20 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white text-center font-semibold outline-none focus:border-teal-500 text-sm"
               />
               <span className="text-slate-300 font-medium text-xs">Ideas</span>
@@ -173,7 +186,7 @@ export default function RecommendedResourcesPage() {
                         {res.heroImage ? (
                           <img
                             src={res.heroImage}
-                            alt={res.headline || "resource"}
+                            alt={res.headline || res.title || "resource"}
                             className="w-16 h-10 object-cover rounded-lg border border-slate-700/60"
                           />
                         ) : (
@@ -185,7 +198,7 @@ export default function RecommendedResourcesPage() {
 
                       <td className="px-5 py-3.5">
                         <div className="font-semibold text-slate-200">
-                          {res.headline || "Untitled Resource"}
+                          {res.headline || res.title || "Untitled Resource"}
                         </div>
                         {res.tagline && (
                           <div className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">
@@ -208,12 +221,12 @@ export default function RecommendedResourcesPage() {
                         >
                           {res.active ? (
                             <>
-                              <ToggleLeft className="w-5 h-5 text-emerald-400" />
+                              <ToggleRight className="w-5 h-5 text-emerald-400" />
                               <span className="text-emerald-400 font-semibold text-[11px]">Active</span>
                             </>
                           ) : (
                             <>
-                              <ToggleRight className="w-5 h-5 text-slate-500" />
+                              <ToggleLeft className="w-5 h-5 text-slate-500" />
                               <span className="text-slate-500 font-semibold text-[11px]">Inactive</span>
                             </>
                           )}

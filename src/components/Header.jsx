@@ -4,6 +4,7 @@
 import Link from 'next/link';
 import StudentLogo from './StudentLogo';
 import ThemeToggle from './ThemeToggle';
+import NotificationBell from './NotificationBell';
 import { Search, Bookmark, Mail } from 'lucide-react';
 
 export default function Header({ savedCount = 0, onOpenSearch, activeView = 'home' }) {
@@ -24,6 +25,9 @@ export default function Header({ savedCount = 0, onOpenSearch, activeView = 'hom
         <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Dark / Light Theme Switcher */}
           <ThemeToggle />
+
+          {/* Web Push Notification Bell */}
+          <NotificationBell />
 
           {/* Search Trigger */}
           <button

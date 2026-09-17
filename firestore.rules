@@ -4,8 +4,8 @@ service cloud.firestore {
     // Whitelisted admin emails
     function isAdmin() {
       return request.auth != null && 
-        (request.auth.token.email == 'kondeboyinaprabhas@gmail.com' ||
-         request.auth.token.email == 'admin@studentearningideas.com');
+        (request.auth.token.email.lower() == 'kondeboyinaprabhas@gmail.com' ||
+         request.auth.token.email.lower() == 'admin@studentearningideas.com');
     }
 
     // Public contact and idea submissions (anyone can submit, admin can manage)
@@ -16,6 +16,12 @@ service cloud.firestore {
 
     // Recommended resources (public can view active resources, admin can manage)
     match /recommendedResources/{resourceId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Settings (public read for global configuration, admin write)
+    match /settings/{settingId} {
       allow read: if true;
       allow write: if isAdmin();
     }
@@ -42,6 +48,12 @@ service cloud.firestore {
 
     // Anonymous telemetry write-only for analytics (public create, admin manage)
     match /analytics/{eventId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // Push notification subscriptions (public create only, admin manage)
+    match /pushSubscriptions/{subId} {
       allow create: if true;
       allow read, update, delete: if isAdmin();
     }

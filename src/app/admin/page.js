@@ -79,6 +79,7 @@ import PreLaunchTestingAudit from '@/components/admin/PreLaunchTestingAudit';
 import VersionHistoryModal from '@/components/admin/VersionHistoryModal';
 import MaintenanceControl from '@/components/admin/MaintenanceControl';
 import AnonymousAnalyticsView from '@/components/admin/AnonymousAnalyticsView';
+import AdminPushBroadcast from '@/components/admin/AdminPushBroadcast';
 import Toast from '@/components/Toast';
 
 // Store & Firebase
@@ -90,11 +91,12 @@ import {
   unpublishIdea
 } from '@/lib/ideasStore';
 import { CATEGORIES } from '@/lib/seedData';
-import { db } from '@/lib/firebase';
+import { db, auth, ADMIN_EMAILS } from '@/lib/firebase';
 import { 
   COLLECTIONS, logAdminAction
 } from '@/lib/firestoreStore';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 import { 
   playNotificationSound, 
   requestNotificationPermission, 
@@ -161,83 +163,102 @@ export default function AdminPage() {
   }, [refreshLocalData]);
 
   // Firestore Real-Time Submissions & Activity Log Listeners
+  // Guarded by onAuthStateChanged — listeners only start after admin auth is confirmed
   useEffect(() => {
-    if (typeof window === 'undefined' || !db) return;
+    if (typeof window === 'undefined' || !db || !auth) return;
 
-    let unsubSubmissions;
-    let unsubLogs;
-    let initialLoadDone = false;
+    let unsubSubmissions = null;
+    let unsubLogs = null;
 
-    try {
-      // 1. Submissions Listener
-      const subQuery = query(
-        collection(db, COLLECTIONS.SUBMISSIONS),
-        orderBy('createdAt', 'desc')
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      // Tear down any existing listeners when auth state changes
+      if (unsubSubmissions) { unsubSubmissions(); unsubSubmissions = null; }
+      if (unsubLogs) { unsubLogs(); unsubLogs = null; }
+
+      // Only attach admin-only listeners for confirmed admin users
+      const isAdmin = user && ADMIN_EMAILS.some(
+        (e) => e === (user.email || '').toLowerCase()
       );
-
-      unsubSubmissions = onSnapshot(subQuery, (snap) => {
-        const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setSubmissions(docs);
+      if (!isAdmin) {
         setSubmissionsLoading(false);
-
-        // Counts
-        const unread = docs.filter(s => !s.deleted && !s.read).length;
-        setUnreadCount(unread);
-
-        const pending = docs.filter(s => !s.deleted && s.status === 'New').length;
-        setPendingCount(pending);
-
-        // Today's Submissions count
-        const startOfDay = new Date();
-        startOfDay.setHours(0, 0, 0, 0);
-        const today = docs.filter(s => {
-          if (s.deleted) return false;
-          let t = 0;
-          if (s.createdAt?.seconds) t = s.createdAt.seconds * 1000;
-          else if (s.createdAt) t = new Date(s.createdAt).getTime();
-          return t >= startOfDay.getTime();
-        }).length;
-        setTodaySubmissionsCount(today);
-
-        // Real-time audio chime & browser notification for new items
-        if (initialLoadDone) {
-          snap.docChanges().forEach((change) => {
-            if (change.type === 'added') {
-              const newDoc = change.doc.data();
-              playNotificationSound();
-              sendBrowserNotification('New Student Submission!', {
-                body: `${newDoc.name || 'Anonymous'}: ${newDoc.title || newDoc.type || 'New submission'}`,
-              });
-              showToast(`🔔 New submission received from ${newDoc.name || 'a student'}!`);
-            }
-          });
-        }
-        initialLoadDone = true;
-      }, (err) => {
-        console.warn('[Firestore] Submissions listener error:', err);
-        setSubmissionsLoading(false);
-      });
-
-      // 2. Activity Logs Listener
-      const logsQuery = query(
-        collection(db, COLLECTIONS.ACTIVITY_LOG),
-        orderBy('timestamp', 'desc'),
-        limit(60)
-      );
-
-      unsubLogs = onSnapshot(logsQuery, (snap) => {
-        const logs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setActivityLogs(logs);
         setLogsLoading(false);
-      }, (err) => {
-        console.warn('[Firestore] Activity log listener error:', err);
-        setLogsLoading(false);
-      });
-    } catch (e) {
-      console.warn('[Firestore] Subscription setup error:', e);
-    }
+        return;
+      }
+
+      let initialLoadDone = false;
+
+      try {
+        // 1. Submissions Listener
+        const subQuery = query(
+          collection(db, COLLECTIONS.SUBMISSIONS),
+          orderBy('createdAt', 'desc')
+        );
+
+        unsubSubmissions = onSnapshot(subQuery, (snap) => {
+          const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          setSubmissions(docs);
+          setSubmissionsLoading(false);
+
+          // Counts
+          const unread = docs.filter(s => !s.deleted && !s.read).length;
+          setUnreadCount(unread);
+
+          const pending = docs.filter(s => !s.deleted && s.status === 'New').length;
+          setPendingCount(pending);
+
+          // Today's Submissions count
+          const startOfDay = new Date();
+          startOfDay.setHours(0, 0, 0, 0);
+          const today = docs.filter(s => {
+            if (s.deleted) return false;
+            let t = 0;
+            if (s.createdAt?.seconds) t = s.createdAt.seconds * 1000;
+            else if (s.createdAt) t = new Date(s.createdAt).getTime();
+            return t >= startOfDay.getTime();
+          }).length;
+          setTodaySubmissionsCount(today);
+
+          // Real-time audio chime & browser notification for new items
+          if (initialLoadDone) {
+            snap.docChanges().forEach((change) => {
+              if (change.type === 'added') {
+                const newDoc = change.doc.data();
+                playNotificationSound();
+                sendBrowserNotification('New Student Submission!', {
+                  body: `${newDoc.name || 'Anonymous'}: ${newDoc.title || newDoc.type || 'New submission'}`,
+                });
+                showToast(`🔔 New submission received from ${newDoc.name || 'a student'}!`);
+              }
+            });
+          }
+          initialLoadDone = true;
+        }, (err) => {
+          console.warn('[Firestore] Submissions listener error:', err);
+          setSubmissionsLoading(false);
+        });
+
+        // 2. Activity Logs Listener
+        const logsQuery = query(
+          collection(db, COLLECTIONS.ACTIVITY_LOG),
+          orderBy('timestamp', 'desc'),
+          limit(60)
+        );
+
+        unsubLogs = onSnapshot(logsQuery, (snap) => {
+          const logs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          setActivityLogs(logs);
+          setLogsLoading(false);
+        }, (err) => {
+          console.warn('[Firestore] Activity log listener error:', err);
+          setLogsLoading(false);
+        });
+      } catch (e) {
+        console.warn('[Firestore] Subscription setup error:', e);
+      }
+    });
 
     return () => {
+      unsubAuth();
       if (unsubSubmissions) unsubSubmissions();
       if (unsubLogs) unsubLogs();
     };
@@ -354,6 +375,22 @@ export default function AdminPage() {
       adminEmail,
       details: `Published "${finalIdea.title}" live to feed`
     });
+
+    // Part 12: Trigger non-blocking push notification to subscribed students
+    fetch('/api/admin/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: `🔥 New Blueprint: ${finalIdea.title}`,
+        message: finalIdea.summary || finalIdea.subtitle || `Explore the complete ${finalIdea.category} blueprint now.`,
+        url: `/idea/${finalIdea.slug}`,
+        type: 'blueprint',
+        adminEmail,
+      }),
+    }).catch((err) => {
+      console.warn('[Push Hook] Failed to send blueprint push notification:', err);
+    });
+
     showToast("Blueprint published live to website feed!");
     setActiveTab('blueprints');
   };
@@ -641,7 +678,17 @@ export default function AdminPage() {
                 </div>
               )}
 
-              {/* TAB 6: BLUEPRINT EDITOR */}
+              {/* TAB 6: PUSH BROADCAST */}
+              {activeTab === 'notifications' && (
+                <div className="animate-in fade-in">
+                  <AdminPushBroadcast
+                    adminEmail={adminEmail}
+                    showToast={showToast}
+                  />
+                </div>
+              )}
+
+              {/* TAB 7: BLUEPRINT EDITOR */}
               {activeTab === 'editor' && (
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in fade-in">
                   {/* Left Column: Editor & Tooling (7 cols) */}

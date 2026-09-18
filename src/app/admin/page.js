@@ -22,6 +22,7 @@ const emptyFormData = {
   categoryColor: 'emerald',
   heroImage: 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=1200&q=80',
   carouselImages: ['https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=1200&q=80'],
+  likes: 0,
   investment: '₹0–₹500',
   estimatedProfit: '₹15,000–₹40,000 / mo',
   profitMargin: '40–80%',
@@ -30,6 +31,11 @@ const emptyFormData = {
   timeRequired: '1–2 hrs / day',
   tags: ['Online', 'Beginner'],
   summary: '',
+  howItWorks: [
+    'Understand student customer demand and identify a niche.',
+    'Set up free digital tools and create initial proof of concept.',
+    'Connect with buyers and collect direct UPI payments.'
+  ],
   implementationSteps: [
     { step: 1, title: 'Niche Research', detail: 'Identify demand within campus or online.', proTip: 'Survey peers.' },
     { step: 2, title: 'Build Proof-of-Work', detail: 'Create 3 sample deliverables.', proTip: 'Host on Drive.' },
@@ -45,18 +51,13 @@ const emptyFormData = {
     { id: 'chk_2', text: 'Create 3 high quality free samples', completed: false },
     { id: 'chk_3', text: 'Pitch 10 prospective buyers on WhatsApp', completed: false }
   ],
-  calculator: {
-    unitLabel: 'Projects / Sales Per Month',
-    defaultUnits: 20,
-    minUnits: 2,
-    maxUnits: 100,
-    avgProfitPerUnit: 500,
-    currency: '₹'
-  },
   startupPlanner: [
-    { item: 'Essential Free Software (Canva, Notion)', cost: 0, isFree: true, essential: true }
+    { item: 'Essential Free Software (Canva, Notion)', cost: 0, isFree: true, essential: true },
+    { item: 'Smartphone / Laptop with Internet', cost: 0, isFree: true, essential: true },
+    { item: 'Payment / UPI Setup', cost: 0, isFree: true, essential: true }
   ],
   relatedIdeaSlugs: [],
+  canonicalUrl: '',
   seoTitle: '',
   metaDescription: ''
 };
@@ -69,7 +70,6 @@ import BlueprintsListView from '@/components/admin/BlueprintsListView';
 import TrashView from '@/components/admin/TrashView';
 import ActivityLog from '@/components/admin/ActivityLog';
 import ProductionHealthDashboard from '@/components/admin/ProductionHealthDashboard';
-import PasteAutoFormat from '@/components/admin/PasteAutoFormat';
 import ImageProcessorStudio from '@/components/admin/ImageProcessorStudio';
 import LiveMobilePreview from '@/components/admin/LiveMobilePreview';
 import LiveSeoIntelligence from '@/components/admin/LiveSeoIntelligence';
@@ -304,6 +304,7 @@ export default function AdminPage() {
     setFormData({
       ...emptyFormData,
       id: newId,
+      likes: 0,
     });
     setActiveTab('editor');
   };
@@ -313,38 +314,16 @@ export default function AdminPage() {
     setFormData({
       ...emptyFormData,
       ...idea,
+      likes: typeof idea.likes === 'number' ? idea.likes : 0,
+      howItWorks: idea.howItWorks?.length ? idea.howItWorks : (idea.breakdown?.howItWorks || []),
+      summary: idea.summary || idea.breakdown?.summary || '',
       seoTitle: idea.seoTitle ?? '',
       metaDescription: idea.metaDescription ?? ''
     });
     setActiveTab('editor');
   };
 
-  // Auto-Format extraction handler
-  const handleAutoFormatData = (parsed) => {
-    const slug = (parsed.title || '')
-      .toLowerCase()
-      .replace(/[^\w\s-]/g, '')
-      .replace(/\s+/g, '-');
 
-    setFormData(prev => ({
-      ...prev,
-      title: parsed.title || prev.title,
-      subtitle: parsed.subtitle || prev.subtitle,
-      slug: slug || prev.slug,
-      category: parsed.category || prev.category,
-      investment: parsed.investment || prev.investment,
-      estimatedProfit: parsed.estimatedProfit || prev.estimatedProfit,
-      paybackPeriod: parsed.paybackPeriod || prev.paybackPeriod,
-      difficulty: parsed.difficulty || prev.difficulty,
-      timeRequired: parsed.timeRequired || prev.timeRequired,
-      summary: parsed.summary || prev.summary,
-      implementationSteps: parsed.steps?.length ? parsed.steps : prev.implementationSteps,
-      checklist: parsed.checklist?.length ? parsed.checklist : prev.checklist,
-      seoTitle: parsed.seoTitle || prev.seoTitle,
-      metaDescription: parsed.metaDescription || prev.metaDescription
-    }));
-    showToast("ChatGPT content formatted and fields populated!");
-  };
 
   // Publish validation and action
   const handlePublish = (adminEmail = 'Founder Admin') => {
@@ -355,13 +334,27 @@ export default function AdminPage() {
     }
 
     const autoSlug = formData.slug || formData.title.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-');
+
+    const rawHiw = Array.isArray(formData.howItWorks)
+      ? formData.howItWorks
+      : typeof formData.howItWorks === 'string'
+        ? formData.howItWorks.split('\n')
+        : [];
+    const cleanHiw = rawHiw
+      .map(l => (typeof l === 'string' ? l.replace(/^\d+[.)\s]+/, '').trim() : l))
+      .filter(Boolean);
+
     const finalIdea = {
       ...formData,
       slug: autoSlug,
       status: 'Published',
+      likes: typeof formData.likes === 'number' ? formData.likes : 0,
       breakdown: {
         summary: formData.summary || formData.subtitle,
-        howItWorks: formData.implementationSteps?.map(s => `${s.step}. ${s.title}: ${s.detail}`) || [],
+        // Use explicitly entered/parsed howItWorks when available; fall back to generating from steps
+        howItWorks: cleanHiw.length
+          ? cleanHiw
+          : formData.implementationSteps?.map(s => `${s.title}: ${s.detail}`) || [],
         bestFor: `Students interested in ${formData.category} with zero upfront capital.`
       }
     };
@@ -397,7 +390,7 @@ export default function AdminPage() {
 
   // Save Draft
   const handleSaveDraft = (adminEmail = 'Founder Admin') => {
-    saveDraftIdea({ ...formData, status: 'Draft' });
+    saveDraftIdea({ ...formData, status: 'Draft', likes: typeof formData.likes === 'number' ? formData.likes : 0 });
     refreshLocalData();
     handleLogAction({
       action: isEditingExisting ? 'Edit' : 'Create',
@@ -415,7 +408,7 @@ export default function AdminPage() {
       alert('Please select a date and time to schedule this blueprint.');
       return;
     }
-    saveScheduledIdea(formData, scheduledDate);
+    saveScheduledIdea({ ...formData, likes: typeof formData.likes === 'number' ? formData.likes : 0 }, scheduledDate);
     refreshLocalData();
     handleLogAction({
       action: 'Schedule',
@@ -710,8 +703,7 @@ export default function AdminPage() {
                       )}
                     </div>
 
-                    {/* 1. Mandatory Paste & Auto Format Card */}
-                    <PasteAutoFormat onParsedData={handleAutoFormatData} />
+
 
                     {/* 2. Client-Side 16:9 Image Processing Studio */}
                     <ImageProcessorStudio
@@ -771,15 +763,19 @@ export default function AdminPage() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                         <div>
                           <label className="block text-xs font-bold text-slate-300 mb-1">Category *</label>
-                          <select
+                          <input
+                            type="text"
+                            list="admin-category-options"
                             value={formData.category}
                             onChange={e => setFormData({ ...formData, category: e.target.value })}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 outline-none focus:border-teal-500 cursor-pointer"
-                          >
+                            placeholder="e.g. Digital Business, Campus Gigs..."
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-slate-200 outline-none focus:border-teal-500"
+                          />
+                          <datalist id="admin-category-options">
                             {CATEGORIES.filter(c => c !== 'All').map(c => (
-                              <option key={c} value={c}>{c}</option>
+                              <option key={c} value={c} />
                             ))}
-                          </select>
+                          </datalist>
                         </div>
 
                         <div>
@@ -840,16 +836,216 @@ export default function AdminPage() {
                         </div>
                       </div>
 
-                      {/* Summary & Breakdown */}
+                      {/* Idea Breakdown Summary */}
                       <div>
                         <label className="block text-xs font-bold text-slate-300 mb-1">💡 Idea Breakdown Summary *</label>
                         <textarea
-                          rows="4"
+                          rows="3"
                           value={formData.summary}
                           onChange={e => setFormData({ ...formData, summary: e.target.value })}
                           placeholder="Detailed explanation of how the business model works..."
                           className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-teal-500"
                         />
+                      </div>
+
+                      {/* How It Works — add/remove points */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-xs font-bold text-slate-300">⚙️ How It Works</label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const hiw = Array.isArray(formData.howItWorks) ? formData.howItWorks : [];
+                              setFormData({ ...formData, howItWorks: [...hiw, ''] });
+                            }}
+                            className="text-[10px] font-bold text-teal-400 hover:text-teal-300 bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 px-2 py-1 rounded-lg transition-all flex items-center gap-1"
+                          >
+                            <Plus className="w-3 h-3" /> Add Point
+                          </button>
+                        </div>
+                        <div className="space-y-2">
+                          {(Array.isArray(formData.howItWorks) ? formData.howItWorks : []).map((point, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
+                              <span className="w-5 h-5 rounded-full bg-teal-500/20 text-teal-300 font-bold text-[10px] flex items-center justify-center shrink-0">{idx + 1}</span>
+                              <input
+                                type="text"
+                                value={point || ''}
+                                onChange={e => {
+                                  const updated = [...formData.howItWorks];
+                                  updated[idx] = e.target.value;
+                                  setFormData({ ...formData, howItWorks: updated });
+                                }}
+                                placeholder={`Point ${idx + 1}...`}
+                                className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-teal-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = formData.howItWorks.filter((_, i) => i !== idx);
+                                  setFormData({ ...formData, howItWorks: updated });
+                                }}
+                                className="text-rose-400 hover:text-rose-300 p-1 rounded-lg hover:bg-rose-500/10 transition-all"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                          {(!Array.isArray(formData.howItWorks) || formData.howItWorks.length === 0) && (
+                            <p className="text-[10px] text-slate-600 text-center py-2">No points yet. Click &quot;Add Point&quot; to begin.</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Implementation Steps — add/remove/edit */}
+                      <div className="border-t border-slate-800 pt-3 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-bold text-teal-400 uppercase tracking-wider">
+                            Implementation Steps ({(formData.implementationSteps || []).length})
+                          </h4>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const steps = formData.implementationSteps || [];
+                              const newStep = { step: steps.length + 1, title: '', detail: '', proTip: '' };
+                              setFormData({ ...formData, implementationSteps: [...steps, newStep] });
+                            }}
+                            className="text-[10px] font-bold text-teal-400 hover:text-teal-300 bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 px-2 py-1 rounded-lg transition-all flex items-center gap-1"
+                          >
+                            <Plus className="w-3 h-3" /> Add Step
+                          </button>
+                        </div>
+                        {(formData.implementationSteps || []).map((st, idx) => (
+                          <div key={idx} className="bg-slate-950 border border-slate-800/80 rounded-xl p-3 space-y-2 text-xs">
+                            <div className="flex items-center gap-2">
+                              <span className="w-5 h-5 rounded-full bg-teal-500/20 text-teal-300 font-bold text-[10px] flex items-center justify-center shrink-0">
+                                {idx + 1}
+                              </span>
+                              <input
+                                type="text"
+                                value={st.title || ''}
+                                onChange={e => {
+                                  const updated = [...(formData.implementationSteps || [])];
+                                  updated[idx] = { ...updated[idx], title: e.target.value };
+                                  setFormData({ ...formData, implementationSteps: updated });
+                                }}
+                                placeholder={`Step ${idx + 1} Title`}
+                                className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-teal-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = (formData.implementationSteps || []).filter((_, i) => i !== idx);
+                                  setFormData({ ...formData, implementationSteps: updated });
+                                }}
+                                className="text-rose-400 hover:text-rose-300 p-1 rounded-lg hover:bg-rose-500/10 transition-all"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            <textarea
+                              rows="2"
+                              value={st.detail || ''}
+                              onChange={e => {
+                                const updated = [...(formData.implementationSteps || [])];
+                                updated[idx] = { ...updated[idx], detail: e.target.value };
+                                setFormData({ ...formData, implementationSteps: updated });
+                              }}
+                              placeholder={`Step ${idx + 1} full details...`}
+                              className="w-full bg-slate-900 border border-slate-800 rounded-lg p-2 text-xs text-slate-300 outline-none focus:border-teal-500"
+                            />
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] text-amber-400 font-bold shrink-0">💡 Pro Tip:</span>
+                              <input
+                                type="text"
+                                value={st.proTip || ''}
+                                onChange={e => {
+                                  const updated = [...(formData.implementationSteps || [])];
+                                  updated[idx] = { ...updated[idx], proTip: e.target.value };
+                                  setFormData({ ...formData, implementationSteps: updated });
+                                }}
+                                placeholder="Pro tip for this step..."
+                                className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-amber-300 placeholder:text-slate-600 outline-none focus:border-teal-500"
+                              />
+                            </div>
+                          </div>
+                        ))}
+                        {(formData.implementationSteps || []).length === 0 && (
+                          <p className="text-[10px] text-slate-600 text-center py-2">No steps yet. Click &quot;Add Step&quot; to begin.</p>
+                        )}
+                      </div>
+
+                      {/* Startup Cost Planner */}
+                      <div className="border-t border-slate-800 pt-3 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-bold text-teal-400 uppercase tracking-wider">Startup Cost Planner</h4>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newRow = { item: '', cost: 0, isFree: true, essential: true };
+                              setFormData({ ...formData, startupPlanner: [...(formData.startupPlanner || []), newRow] });
+                            }}
+                            className="text-[10px] font-bold text-teal-400 hover:text-teal-300 bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/30 px-2 py-1 rounded-lg transition-all flex items-center gap-1"
+                          >
+                            <Plus className="w-3 h-3" /> Add Row
+                          </button>
+                        </div>
+                        <div className="space-y-2">
+                          {(formData.startupPlanner || []).map((row, idx) => (
+                            <div key={idx} className="flex items-center gap-2 bg-slate-950 border border-slate-800/80 rounded-xl p-2.5">
+                              <input
+                                type="text"
+                                value={row.item || ''}
+                                onChange={e => {
+                                  const updated = [...formData.startupPlanner];
+                                  updated[idx] = { ...updated[idx], item: e.target.value };
+                                  setFormData({ ...formData, startupPlanner: updated });
+                                }}
+                                placeholder="Item name..."
+                                className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-white outline-none focus:border-teal-500"
+                              />
+                              <div className="flex items-center gap-1">
+                                <span className="text-slate-500 text-[10px]">₹</span>
+                                <input
+                                  type="number"
+                                  value={row.cost ?? 0}
+                                  onChange={e => {
+                                    const updated = [...formData.startupPlanner];
+                                    const cost = Number(e.target.value);
+                                    updated[idx] = { ...updated[idx], cost, isFree: cost === 0 };
+                                    setFormData({ ...formData, startupPlanner: updated });
+                                  }}
+                                  placeholder="0"
+                                  className="w-16 bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-emerald-400 font-bold outline-none focus:border-teal-500"
+                                />
+                              </div>
+                              <select
+                                value={row.essential ? 'essential' : 'optional'}
+                                onChange={e => {
+                                  const updated = [...formData.startupPlanner];
+                                  updated[idx] = { ...updated[idx], essential: e.target.value === 'essential' };
+                                  setFormData({ ...formData, startupPlanner: updated });
+                                }}
+                                className="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1.5 text-[10px] text-slate-300 outline-none focus:border-teal-500 cursor-pointer"
+                              >
+                                <option value="essential">Essential</option>
+                                <option value="optional">Optional</option>
+                              </select>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = formData.startupPlanner.filter((_, i) => i !== idx);
+                                  setFormData({ ...formData, startupPlanner: updated });
+                                }}
+                                className="text-rose-400 hover:text-rose-300 p-1 rounded-lg hover:bg-rose-500/10 transition-all"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                          {(!formData.startupPlanner || formData.startupPlanner.length === 0) && (
+                            <p className="text-[10px] text-slate-600 text-center py-2">No items yet. Click &quot;Add Row&quot; to begin.</p>
+                          )}
+                        </div>
                       </div>
 
                       {/* SEO Fields */}
@@ -875,6 +1071,17 @@ export default function AdminPage() {
                             value={formData.metaDescription}
                             onChange={e => setFormData({ ...formData, metaDescription: e.target.value })}
                             placeholder="120–160 character snippet for Google search preview..."
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-teal-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-300 mb-1">Canonical URL</label>
+                          <input
+                            type="url"
+                            value={formData.canonicalUrl || ''}
+                            onChange={e => setFormData({ ...formData, canonicalUrl: e.target.value })}
+                            placeholder="https://studentearningideas.in/idea/your-idea-slug"
                             className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-teal-500"
                           />
                         </div>

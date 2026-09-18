@@ -1,5 +1,5 @@
 // ideasStore.js - Production State & Local/Firestore Synchronizer
-import { SEED_IDEAS } from './seedData';
+import { SEED_IDEAS } from './seedData.js';
 
 const STORAGE_KEYS = {
   PUBLISHED: 'sei_published_ideas_v1',
@@ -230,6 +230,29 @@ export function toggleLike(ideaId) {
   const nextState = !isLiked;
   map[ideaId] = nextState;
   safeSet(STORAGE_KEYS.LIKES, map);
+
+  // Update like count in published ideas so the real count persists across page refreshes
+  const published = getPublishedIdeas();
+  const index = published.findIndex(i => i.id === ideaId);
+  if (index >= 0) {
+    const target = published[index];
+    const currentLikes = typeof target.likes === 'number' ? target.likes : 0;
+    const newLikes = nextState ? currentLikes + 1 : Math.max(0, currentLikes - 1);
+    published[index] = { ...target, likes: newLikes };
+    safeSet(STORAGE_KEYS.PUBLISHED, published);
+  } else {
+    // Also check drafts (for draft preview mode)
+    const drafts = getDraftIdeas();
+    const draftIndex = drafts.findIndex(d => d.id === ideaId);
+    if (draftIndex >= 0) {
+      const target = drafts[draftIndex];
+      const currentLikes = typeof target.likes === 'number' ? target.likes : 0;
+      const newLikes = nextState ? currentLikes + 1 : Math.max(0, currentLikes - 1);
+      drafts[draftIndex] = { ...target, likes: newLikes };
+      safeSet(STORAGE_KEYS.DRAFTS, drafts);
+    }
+  }
+
   return nextState;
 }
 

@@ -46,14 +46,15 @@ export default function HomePage() {
   const [maintenance, setMaintenance] = useState({ enabled: false, message: '' });
   const viewedIdeaIds = useRef(new Set());
   const previousScrollY = useRef(0);
-  const notificationDismissed = typeof window !== 'undefined' && localStorage.getItem('notification_prompt_dismissed') === 'true';
-  const notificationShown = typeof window !== 'undefined' && localStorage.getItem('notification_prompt_shown') === 'true';
+
   useEffect(() => {
-    if (notificationDismissed || notificationShown) {
+    const dismissed = typeof window !== 'undefined' && localStorage.getItem('notification_prompt_dismissed') === 'true';
+    const shown = typeof window !== 'undefined' && localStorage.getItem('notification_prompt_shown') === 'true';
+    if (dismissed || shown) {
       setShowNotificationPrompt(false);
     }
-   }, []);
-    const [scrollCounter, setScrollCounter] = useState(0);
+  }, []);
+  const [scrollCounter, setScrollCounter] = useState(0);
   const handleNotificationClose = () => {
     setShowNotificationPrompt(false);
     localStorage.setItem('notification_prompt_dismissed', 'true');
@@ -167,7 +168,9 @@ export default function HomePage() {
               viewedIdeaIds.current.add(cardId);
               setViewedIdeaCount((prev) => {
                 const newCount = prev + 1;
-                if (newCount === 3 && !notificationDismissed && !notificationShown) {
+                const dismissed = typeof window !== 'undefined' && localStorage.getItem('notification_prompt_dismissed') === 'true';
+                const shown = typeof window !== 'undefined' && localStorage.getItem('notification_prompt_shown') === 'true';
+                if (newCount === 3 && !dismissed && !shown) {
                   setShowNotificationPrompt(true);
                   localStorage.setItem('notification_prompt_shown', 'true');
                 }
@@ -215,7 +218,7 @@ export default function HomePage() {
     });
 
     return () => { observer.disconnect(); };
-  }, [sortedFeedIdeas]);
+  }, [sortedFeedIdeas, triggerOnIdeaView]);
 
   const showToast = (msg) => {
     setToastMessage(msg);

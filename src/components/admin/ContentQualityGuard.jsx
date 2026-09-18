@@ -39,13 +39,7 @@ export function runQualityGuardCheck(ideaData, existingIdeas = []) {
     canPublish = false;
   }
 
-  // 6. Missing Calculator
-  if (!ideaData.calculator || !ideaData.calculator.unitLabel) {
-    issues.push({ id: 'calculator', message: 'Earnings Calculator parameters must be configured.', critical: true });
-    canPublish = false;
-  }
-
-  // 7. Missing SEO Fields
+  // 6. Missing SEO Fields
   if (!ideaData.seoTitle || !ideaData.metaDescription) {
     issues.push({ id: 'seo', message: 'SEO Title and Meta Description are required.', critical: true });
     canPublish = false;
@@ -114,7 +108,7 @@ export default function ContentQualityGuard({ ideaData, existingIdeas = [] }) {
       {issues.length === 0 ? (
         <div className="flex items-center gap-2 text-xs text-emerald-400 font-medium py-1">
           <CheckCircle2 className="w-4 h-4" />
-          <span>All 10 quality checks passed! High originality & completeness.</span>
+          <span>All quality checks passed! High originality & completeness.</span>
         </div>
       ) : (
         <div className="space-y-1.5 text-xs">

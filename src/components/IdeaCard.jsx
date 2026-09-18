@@ -1,7 +1,7 @@
 // IdeaCard.jsx - Snap-Scroll Idea Card with Dark Mode & Clean Image Indicators (Zero '16:9' Text)
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { 
   ChevronDown, ChevronUp, ChevronLeft, ChevronRight, 
@@ -15,6 +15,7 @@ import SpokenWordHighlight from './SpokenWordHighlight';
 import { tts } from '@/lib/ttsService';
 import { trackEvent } from '../lib/analytics';
 
+
 export default function IdeaCard({ 
   idea, 
   index = 0, 
@@ -23,8 +24,15 @@ export default function IdeaCard({
   onNavigateToIdea,
   allIdeas = [] 
 }) {
-  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  // trackIndex moves through the slide strip (0 … N-1 real images + 1 clone of first).
+  const [trackIndex, setTrackIndex] = useState(0);
+  // isSliding controls whether the CSS transition is enabled.
+  // Disabled only during the silent instant-jump from the clone back to index 0.
+  const [isSliding, setIsSliding] = useState(true);
   const [isExpanded, setIsExpanded] = useState(false);
+  const carouselRef = useRef(null);
+  const isVisibleRef = useRef(false);
+  const timerRef = useRef(null);
   const [audioState, setAudioState] = useState({
     isPlaying: false,
     isPaused: false,
@@ -59,14 +67,86 @@ export default function IdeaCard({
   }, [audioState.activeWord, audioState.activeWordIndex, audioState.activeSectionKey, audioState.isPlaying, audioState.isPaused, audioState.currentIdeaId, idea.id]);
   const carouselImages = idea.carouselImages?.length ? idea.carouselImages : [idea.heroImage];
 
+  // Append a clone of the first image so the last→first transition is also a smooth slide.
+  // Single-image carousels keep the plain array (no clone needed).
+  const slidesArray = carouselImages.length > 1
+    ? [...carouselImages, carouselImages[0]]
+    : carouselImages;
+  const totalSlides = slidesArray.length;
+
+  // The "real" index (0…N-1) used for dot indicators and alt text.
+  const realIndex = trackIndex >= carouselImages.length ? 0 : trackIndex;
+
+  // Called when the CSS transition ends on the strip.
+  // If we just animated to the clone (position N), silently jump to position 0.
+  const handleTransitionEnd = useCallback(() => {
+    if (trackIndex >= carouselImages.length) {
+      setIsSliding(false);   // disable transition for the silent jump
+      setTrackIndex(0);
+    }
+  }, [trackIndex, carouselImages.length]);
+
+  // Re-enable the transition one paint-frame after the silent jump completes
+  // so the strip doesn't animate back across all slides.
+  useEffect(() => {
+    if (!isSliding) {
+      const id = requestAnimationFrame(() =>
+        requestAnimationFrame(() => setIsSliding(true))
+      );
+      return () => cancelAnimationFrame(id);
+    }
+  }, [isSliding]);
+
+  // Viewport-aware auto-advance using IntersectionObserver.
+  // Starts ticking when the carousel enters the viewport; stops when it leaves.
+  // Each mounted IdeaCard gets its own independent observer and timer.
+  useEffect(() => {
+    if (carouselImages.length < 2) return;
+    const el = carouselRef.current;
+    if (!el) return;
+
+    const startTicking = () => {
+      if (timerRef.current) return;
+      timerRef.current = setInterval(() => {
+        if (isVisibleRef.current) {
+          // Simply increment — handleTransitionEnd handles the clone→0 reset.
+          setTrackIndex(prev => prev + 1);
+        }
+      }, 1000);
+    };
+
+    const stopTicking = () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        isVisibleRef.current = entry.isIntersecting;
+        if (entry.isIntersecting) startTicking();
+        else stopTicking();
+      },
+      { threshold: 0.01 }
+    );
+
+    observer.observe(el);
+    return () => { observer.disconnect(); stopTicking(); };
+  }, [carouselImages.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handlePrevImage = (e) => {
     e.stopPropagation();
-    setActiveImageIndex(prev => (prev === 0 ? carouselImages.length - 1 : prev - 1));
+    setIsSliding(true);
+    // When at index 0 go backwards to the last real image.
+    setTrackIndex(prev => (prev <= 0 ? carouselImages.length - 1 : prev - 1));
   };
 
   const handleNextImage = (e) => {
     e.stopPropagation();
-    setActiveImageIndex(prev => (prev === carouselImages.length - 1 ? 0 : prev + 1));
+    setIsSliding(true);
+    // Allow advancing into the clone (position N); handleTransitionEnd will reset.
+    setTrackIndex(prev => Math.min(prev + 1, carouselImages.length));
   };
 
   const handleToggleExpand = () => {
@@ -145,41 +225,63 @@ export default function IdeaCard({
           />
         </p>
 
-        {/* 16:9 Hero Image with Multi-Image Carousel (Zero '16:9' text label) */}
-        <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800 group shadow-2xs">
-          <img
-            src={carouselImages[activeImageIndex]}
-            alt={`${idea.title} showcase photo ${activeImageIndex + 1}`}
-            className="w-full h-full object-cover select-none transition-transform duration-500 group-hover:scale-102"
-            loading="lazy"
-          />
+        {/* 16:9 Hero Image — Smooth Horizontal Sliding Carousel */}
+        <div ref={carouselRef} className="relative aspect-video w-full rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800 shadow-2xs">
 
-          {/* Carousel Arrows (Swipe & Click Indicators) */}
+          {/* Horizontal strip: all slides (+ clone) laid out side-by-side.
+              Sliding the strip with translateX creates the physical movement effect. */}
+          <div
+            className="flex h-full"
+            style={{
+              width: `${totalSlides * 100}%`,
+              transform: `translateX(-${(trackIndex / totalSlides) * 100}%)`,
+              transition: isSliding ? 'transform 420ms cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none',
+              willChange: 'transform',
+            }}
+            onTransitionEnd={handleTransitionEnd}
+          >
+            {slidesArray.map((img, i) => (
+              <div
+                key={i}
+                style={{ width: `${100 / totalSlides}%`, flexShrink: 0, height: '100%' }}
+              >
+                <img
+                  src={img}
+                  alt={`${idea.title} showcase photo ${(i % carouselImages.length) + 1}`}
+                  className="w-full h-full object-cover select-none"
+                  loading="lazy"
+                  draggable={false}
+                />
+              </div>
+            ))}
+          </div>
+
+          {/* Carousel Controls — only shown when 2+ images exist */}
           {carouselImages.length > 1 && (
             <>
               <button
                 onClick={handlePrevImage}
-                className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/50 hover:bg-black/75 text-white flex items-center justify-center backdrop-blur-xs transition-transform active:scale-90"
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/50 hover:bg-black/75 text-white flex items-center justify-center backdrop-blur-xs transition-transform active:scale-90 z-10"
                 aria-label="Previous image"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
               <button
                 onClick={handleNextImage}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/50 hover:bg-black/75 text-white flex items-center justify-center backdrop-blur-xs transition-transform active:scale-90"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/50 hover:bg-black/75 text-white flex items-center justify-center backdrop-blur-xs transition-transform active:scale-90 z-10"
                 aria-label="Next image"
               >
                 <ChevronRight className="w-5 h-5" />
               </button>
 
-              {/* Indicator Dots */}
-              <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur-md px-2.5 py-1 rounded-full flex items-center gap-1.5">
+              {/* Dot Indicators — reflect real image position (excludes clone) */}
+              <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur-md px-2.5 py-1 rounded-full flex items-center gap-1.5 z-10">
                 {carouselImages.map((_, dotIdx) => (
                   <button
                     key={dotIdx}
-                    onClick={() => setActiveImageIndex(dotIdx)}
+                    onClick={() => { setIsSliding(true); setTrackIndex(dotIdx); }}
                     className={`h-1.5 rounded-full transition-all ${
-                      dotIdx === activeImageIndex ? 'w-4 bg-white' : 'w-1.5 bg-white/50'
+                      dotIdx === realIndex ? 'w-4 bg-white' : 'w-1.5 bg-white/50'
                     }`}
                     aria-label={`Go to slide ${dotIdx + 1}`}
                   />
@@ -252,7 +354,7 @@ export default function IdeaCard({
                       <li key={hIdx} className="pl-1">
                         <span className="font-medium">
                           <SpokenWordHighlight
-                            text={hw}
+                            text={typeof hw === 'string' ? hw.replace(/^\d+[.)\s]+/, '').trim() : hw}
                             sectionKey="howItWorks"
                             audioState={audioState}
                             ideaId={idea.id}

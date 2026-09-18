@@ -67,7 +67,7 @@ export default function DraftPreviewPage() {
       <div className="bg-amber-500 text-slate-950 px-4 py-2 text-xs font-bold flex items-center justify-between shadow-xs sticky top-0 z-50">
         <div className="flex items-center gap-2">
           <Eye className="w-4 h-4" />
-          <span>CONFIDENTIAL INTERNAL PREVIEW • IDENTICAL TO LIVE PRODUCTION</span>
+          <span>DRAFT PREVIEW • PREVIEW BEFORE PUBLISHING</span>
         </div>
         <Link
           href="/admin"

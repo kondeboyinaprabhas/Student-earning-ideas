@@ -9,7 +9,7 @@ import { trackEvent } from '../lib/analytics';
 
 export default function EngagementBar({ idea, onSaveChange, onShowToast }) {
   const [isLiked, setIsLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(idea.likes || 120);
+  const [likeCount, setLikeCount] = useState(typeof idea.likes === 'number' ? idea.likes : 0);
   const [isSaved, setIsSaved] = useState(false);
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
@@ -22,19 +22,21 @@ export default function EngagementBar({ idea, onSaveChange, onShowToast }) {
     const savedIds = getSavedIds();
     setIsSaved(savedIds.includes(idea.id));
 
+    setLikeCount(typeof idea.likes === 'number' ? idea.likes : 0);
+
     // Subscribe to TTS status
     const unsubscribe = tts.subscribe(({ isPlaying, isPaused, currentIdeaId }) => {
       setIsPlayingAudio(isPlaying && !isPaused && currentIdeaId === idea.id);
     });
 
     return () => unsubscribe();
-  }, [idea.id]);
+  }, [idea.id, idea.likes]);
 
   // Handle Like
   const handleLike = () => {
     const nextLiked = toggleLike(idea.id);
     setIsLiked(nextLiked);
-    setLikeCount(prev => nextLiked ? prev + 1 : prev - 1);
+    setLikeCount(prev => nextLiked ? prev + 1 : Math.max(0, prev - 1));
     trackEvent('like', { ideaId: idea.id, liked: nextLiked });
   };
 

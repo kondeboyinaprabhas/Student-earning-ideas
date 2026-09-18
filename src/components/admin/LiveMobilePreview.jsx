@@ -16,9 +16,9 @@ export default function LiveMobilePreview({ ideaData, allIdeas = [] }) {
     trustBadges: ideaData.trustBadges?.length ? ideaData.trustBadges : ["Verified Blueprint", "Student Friendly"],
     heroImage: ideaData.heroImage || "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=1200&q=80",
     carouselImages: ideaData.carouselImages?.length ? ideaData.carouselImages : [ideaData.heroImage || "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=1200&q=80"],
-    likes: ideaData.likes || 120,
-    shares: ideaData.shares || 45,
-    saves: ideaData.saves || 89,
+    likes: typeof ideaData.likes === 'number' ? ideaData.likes : 0,
+    shares: typeof ideaData.shares === 'number' ? ideaData.shares : 0,
+    saves: typeof ideaData.saves === 'number' ? ideaData.saves : 0,
     investment: ideaData.investment || "₹0–₹500",
     estimatedProfit: ideaData.estimatedProfit || "₹15,000–₹40,000 / mo",
     profitMargin: ideaData.profitMargin || "40–80%",
@@ -35,11 +35,15 @@ export default function LiveMobilePreview({ ideaData, allIdeas = [] }) {
     disclaimer: "Real-time preview mode simulates actual smartphone viewport and inline accordion expansion.",
     breakdown: {
       summary: ideaData.summary || ideaData.breakdown?.summary || "Summary breakdown will display here. Tap Read More to expand all steps, tools, and calculators.",
-      howItWorks: ideaData.breakdown?.howItWorks?.length ? ideaData.breakdown.howItWorks : [
-        "1. Real-time step one from editor.",
-        "2. Real-time step two from editor.",
-        "3. Real-time step three from editor."
-      ]
+      howItWorks: (Array.isArray(ideaData.howItWorks) && ideaData.howItWorks.length)
+        ? ideaData.howItWorks.map(h => typeof h === 'string' ? h.replace(/^\d+[.)\s]+/, '').trim() : h).filter(Boolean)
+        : (ideaData.breakdown?.howItWorks?.length
+            ? ideaData.breakdown.howItWorks.map(h => typeof h === 'string' ? h.replace(/^\d+[.)\s]+/, '').trim() : h).filter(Boolean)
+            : [
+                "Understand student customer demand and identify a niche.",
+                "Set up free digital tools and create initial proof of concept.",
+                "Connect with buyers and collect direct UPI payments."
+              ])
     },
     implementationSteps: ideaData.implementationSteps?.length ? ideaData.implementationSteps : [
       { step: 1, title: "Initial Setup Phase", detail: "Description of first step.", proTip: "Pro tip preview." },

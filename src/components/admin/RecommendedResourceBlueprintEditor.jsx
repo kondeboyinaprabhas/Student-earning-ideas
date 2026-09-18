@@ -12,8 +12,6 @@ import {
   Plus,
   Trash2,
   ExternalLink,
-  Sparkles,
-  Wand2,
   Smartphone,
   Monitor,
   Eye,
@@ -24,7 +22,8 @@ import {
   Tag,
   FolderPlus,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Sparkles
 } from 'lucide-react';
 
 import ImageProcessorStudio from '@/components/admin/ImageProcessorStudio';
@@ -83,11 +82,6 @@ export default function RecommendedResourceBlueprintEditor({ mode = 'create', id
   // Preview Mode: 'mobile' | 'desktop'
   const [previewMode, setPreviewMode] = useState('mobile');
 
-  // Paste & Auto Format State
-  const [rawPasteText, setRawPasteText] = useState('');
-  const [parsedPreview, setParsedPreview] = useState(null);
-  const [pasteApplied, setPasteApplied] = useState(false);
-
   // Load existing data if in Edit Mode
   useEffect(() => {
     if (!isEdit || !id) return;
@@ -121,8 +115,8 @@ export default function RecommendedResourceBlueprintEditor({ mode = 'create', id
           });
 
           // Ensure category is present in available categories
-          if (data.category && !availableCategories.includes(data.category)) {
-            setAvailableCategories((prev) => [...prev, data.category]);
+          if (data.category) {
+            setAvailableCategories((prev) => (prev.includes(data.category) ? prev : [...prev, data.category]));
           }
         } else {
           setToastMessage('Resource not found in database.');
@@ -174,145 +168,6 @@ export default function RecommendedResourceBlueprintEditor({ mode = 'create', id
       ...prev,
       links: prev.links.filter((_, i) => i !== index)
     }));
-  };
-
-  // Paste & Auto Format NLP Parser
-  const handleParsePasteText = () => {
-    if (!rawPasteText.trim()) return;
-
-    const lines = rawPasteText.split('\n').map((l) => l.trim()).filter(Boolean);
-    let headline = '';
-    let tagline = '';
-    let category = '';
-    let heroImage = '';
-    const descLines = [];
-    const readMoreLines = [];
-    const links = [];
-    let currentSection = null;
-
-    for (const line of lines) {
-      if (/^(headline|title|name)\s*:\s*/i.test(line)) {
-        headline = line.replace(/^(headline|title|name)\s*:\s*/i, '').replace(/^#+\s*/, '').trim();
-        currentSection = null;
-      } else if (/^#+\s+/.test(line) && !headline) {
-        headline = line.replace(/^#+\s+/, '').trim();
-        currentSection = null;
-      } else if (/^(tagline|subtitle|hook)\s*:\s*/i.test(line)) {
-        tagline = line.replace(/^(tagline|subtitle|hook)\s*:\s*/i, '').trim();
-        currentSection = null;
-      } else if (/^category\s*:\s*/i.test(line)) {
-        category = line.replace(/^category\s*:\s*/i, '').trim();
-        currentSection = null;
-      } else if (/^(hero\s*image|image|cover)\s*:\s*/i.test(line)) {
-        heroImage = line.replace(/^(hero\s*image|image|cover)\s*:\s*/i, '').trim();
-        currentSection = null;
-      } else if (/^(links?|resources?|platforms?)\s*:\s*$/i.test(line)) {
-        currentSection = 'links';
-      } else if (/^(read\s*more|details|extended|about)\s*:\s*/i.test(line)) {
-        const rest = line.replace(/^(read\s*more|details|extended|about)\s*:\s*/i, '').trim();
-        if (rest) readMoreLines.push(rest);
-        currentSection = 'readMore';
-      } else if (/^(description|overview|summary)\s*:\s*/i.test(line)) {
-        const rest = line.replace(/^(description|overview|summary)\s*:\s*/i, '').trim();
-        if (rest) descLines.push(rest);
-        currentSection = 'description';
-      } else {
-        if (currentSection === 'readMore') {
-          readMoreLines.push(line);
-        } else if (currentSection === 'description') {
-          descLines.push(line);
-        } else if (currentSection === 'links' || /https?:\/\//i.test(line)) {
-          const mdMatch = line.match(/\[(.*?)\]\((https?:\/\/[^\s)]+)\)/);
-          if (mdMatch) {
-            links.push({ label: mdMatch[1], url: mdMatch[2], description: '' });
-          } else {
-            const urlMatch = line.match(/(https?:\/\/[^\s]+)/);
-            if (urlMatch) {
-              const url = urlMatch[1];
-              const label = line.replace(url, '').replace(/^[-*•\d.)\s:]+/, '').trim() || 'Access Resource';
-              links.push({ label, url, description: '' });
-            }
-          }
-        } else if (!headline) {
-          headline = line;
-        } else if (!tagline) {
-          tagline = line;
-        } else {
-          descLines.push(line);
-        }
-      }
-    }
-
-    const extracted = {
-      headline: headline || 'Curated Resource for Students',
-      tagline: tagline || '',
-      category: category || form.category || 'Tools & Software',
-      description: descLines.join('\n\n') || '',
-      readMore: readMoreLines.join('\n\n') || '',
-      links: links.length ? links : form.links,
-      heroImage: heroImage || form.heroImage
-    };
-
-    setParsedPreview(extracted);
-    setPasteApplied(false);
-  };
-
-  const handleApplyParsedText = () => {
-    if (!parsedPreview) return;
-    setForm((prev) => ({
-      ...prev,
-      headline: parsedPreview.headline || prev.headline,
-      tagline: parsedPreview.tagline || prev.tagline,
-      category: parsedPreview.category || prev.category,
-      description: parsedPreview.description || prev.description,
-      readMore: parsedPreview.readMore || prev.readMore,
-      links: parsedPreview.links?.length ? parsedPreview.links : prev.links,
-      heroImage: parsedPreview.heroImage || prev.heroImage,
-      carouselImages: parsedPreview.heroImage ? [parsedPreview.heroImage] : prev.carouselImages
-    }));
-
-    if (parsedPreview.category && !availableCategories.includes(parsedPreview.category)) {
-      setAvailableCategories((prev) => [...prev, parsedPreview.category]);
-    }
-
-    setPasteApplied(true);
-    setTimeout(() => setPasteApplied(false), 3000);
-  };
-
-  const handleInsertSample = () => {
-    const sample = `# Title: Canva for Education & Student Creators
-Subtitle: Design professional logos, Instagram carousels, resume templates and printables for free.
-Category: Tools & Software
-Hero Image: https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80
-
-Description:
-Canva is the ultimate Swiss Army knife for college students launching an online service or agency. With thousands of drag-and-drop templates, students can produce paid social media graphics, client pitch decks, and digital products without expensive software licenses.
-
-Read More:
-Get verified with your student (.edu or college) email address to unlock premium asset packs, background remover tools, and SVG export features at zero cost.
-
-Links:
-- [Official Canva Student Program](https://canva.com/education)
-- [Design Tutorials for Freelancers](https://youtube.com)
-`;
-    setRawPasteText(sample);
-    const fakeEvt = { target: { value: sample } };
-    // Trigger parse
-    setTimeout(() => {
-      const lines = sample.split('\n').map((l) => l.trim()).filter(Boolean);
-      setParsedPreview({
-        headline: 'Canva for Education & Student Creators',
-        tagline: 'Design professional logos, Instagram carousels, resume templates and printables for free.',
-        category: 'Tools & Software',
-        heroImage: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80',
-        description: 'Canva is the ultimate Swiss Army knife for college students launching an online service or agency. With thousands of drag-and-drop templates, students can produce paid social media graphics, client pitch decks, and digital products without expensive software licenses.',
-        readMore: 'Get verified with your student (.edu or college) email address to unlock premium asset packs, background remover tools, and SVG export features at zero cost.',
-        links: [
-          { label: 'Official Canva Student Program', url: 'https://canva.com/education', description: 'Unlock verified student license' },
-          { label: 'Design Tutorials for Freelancers', url: 'https://youtube.com', description: 'Free crash courses' }
-        ]
-      });
-    }, 50);
   };
 
   // Submit handler
@@ -476,74 +331,7 @@ Links:
               {/* Left Column: Editor & Tooling (7 cols) */}
               <div className="lg:col-span-7 space-y-6">
                 
-                {/* 1. Mandatory Paste & Auto Format Card */}
-                <div className="bg-gradient-to-br from-teal-950/40 via-slate-900 to-slate-900 border border-teal-500/30 rounded-3xl p-5 sm:p-6 shadow-xl space-y-4">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 border-b border-teal-500/20 pb-4">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-xl bg-teal-500/20 text-teal-400 flex items-center justify-center border border-teal-500/30 shadow-inner">
-                        <Wand2 className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h3 className="text-base font-bold text-white flex items-center gap-2">
-                          Paste & Auto Format
-                          <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
-                            1-CLICK AUTOFILL
-                          </span>
-                        </h3>
-                        <p className="text-xs text-slate-400">
-                          Paste raw text from ChatGPT, research notes, or tools — automatically parse all fields.
-                        </p>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={handleInsertSample}
-                      className="text-xs bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 px-3 py-1.5 rounded-xl border border-teal-500/30 flex items-center gap-1.5 transition-colors cursor-pointer"
-                    >
-                      <Sparkles className="w-3.5 h-3.5 text-teal-400" />
-                      <span>Insert Sample Resource</span>
-                    </button>
-                  </div>
-
-                  <div className="space-y-3">
-                    <textarea
-                      rows={3}
-                      value={rawPasteText}
-                      onChange={(e) => setRawPasteText(e.target.value)}
-                      placeholder="Paste raw text here... Example:&#10;Headline: Notion Study Pro&#10;Tagline: GPA tracking for college students&#10;Category: Tools & Software&#10;Description: Aesthetic workspace templates..."
-                      className="w-full bg-slate-950/80 border border-slate-800 rounded-2xl p-3 text-xs text-white placeholder-slate-500 outline-none focus:border-teal-500"
-                    />
-
-                    <div className="flex items-center justify-between">
-                      <button
-                        type="button"
-                        onClick={handleParsePasteText}
-                        className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-4 py-2 rounded-xl transition-all cursor-pointer flex items-center gap-1.5"
-                      >
-                        <Wand2 className="w-3.5 h-3.5 text-teal-400" />
-                        <span>Parse Content</span>
-                      </button>
-
-                      {parsedPreview && (
-                        <button
-                          type="button"
-                          onClick={handleApplyParsedText}
-                          className={`text-xs font-bold px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${
-                            pasteApplied
-                              ? 'bg-emerald-600 text-white'
-                              : 'bg-teal-500 hover:bg-teal-400 text-slate-950'
-                          }`}
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                          <span>{pasteApplied ? 'Applied to Form!' : 'Apply to Editor'}</span>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* 2. Image Processor Studio */}
+                {/* 1. Image Processor Studio */}
                 <ImageProcessorStudio
                   heroImage={form.heroImage}
                   carouselImages={form.carouselImages}

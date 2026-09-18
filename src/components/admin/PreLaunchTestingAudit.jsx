@@ -49,7 +49,7 @@ export default function PreLaunchTestingAudit({ ideas = [] }) {
           <FileCheck2 className="w-5 h-5 text-teal-400" />
           <div>
             <h4 className="text-sm font-bold text-white">Pre-Launch Testing & Compliance Audit</h4>
-            <p className="text-[11px] text-slate-400">Automated 17-point audit verifying all systems before production launch</p>
+            <p className="text-[11px] text-slate-400">17-point audit verifying all platform systems before production launch</p>
           </div>
         </div>
 

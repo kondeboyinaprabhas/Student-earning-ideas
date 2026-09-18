@@ -33,6 +33,10 @@ export default function IdeaCard({
   const carouselRef = useRef(null);
   const isVisibleRef = useRef(false);
   const timerRef = useRef(null);
+  const isUserHoldingRef = useRef(false);
+  const isTransitioningRef = useRef(false);
+  const touchStartXRef = useRef(0);
+  const touchStartYRef = useRef(0);
   const [audioState, setAudioState] = useState({
     isPlaying: false,
     isPaused: false,
@@ -77,14 +81,38 @@ export default function IdeaCard({
   // The "real" index (0…N-1) used for dot indicators and alt text.
   const realIndex = trackIndex >= carouselImages.length ? 0 : trackIndex;
 
-  // Called when the CSS transition ends on the strip.
+  // Schedules the next slide advance after `delay` ms (default 2-second hold).
+  // Will only fire if the card is still in the viewport and the user is not actively holding.
+  const scheduleNextSlide = useCallback((delay = 2000) => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    if (!isVisibleRef.current || isUserHoldingRef.current || carouselImages.length < 2) {
+      return;
+    }
+    timerRef.current = setTimeout(() => {
+      if (isVisibleRef.current && !isUserHoldingRef.current) {
+        isTransitioningRef.current = true;
+        setIsSliding(true);
+        setTrackIndex(prev => prev + 1);
+      }
+    }, delay);
+  }, [carouselImages.length]);
+
+  // Called when the CSS transition ends on the strip (after ~800ms slide).
   // If we just animated to the clone (position N), silently jump to position 0.
   const handleTransitionEnd = useCallback(() => {
+    isTransitioningRef.current = false;
     if (trackIndex >= carouselImages.length) {
       setIsSliding(false);   // disable transition for the silent jump
       setTrackIndex(0);
     }
-  }, [trackIndex, carouselImages.length]);
+    // Hold each image still for 2 seconds before sliding to the next
+    if (!isUserHoldingRef.current && isVisibleRef.current) {
+      scheduleNextSlide(2000);
+    }
+  }, [trackIndex, carouselImages.length, scheduleNextSlide]);
 
   // Re-enable the transition one paint-frame after the silent jump completes
   // so the strip doesn't animate back across all slides.
@@ -98,26 +126,16 @@ export default function IdeaCard({
   }, [isSliding]);
 
   // Viewport-aware auto-advance using IntersectionObserver.
-  // Starts ticking when the carousel enters the viewport; stops when it leaves.
+  // Starts 2s hold when the carousel enters the viewport; pauses completely when it leaves.
   // Each mounted IdeaCard gets its own independent observer and timer.
   useEffect(() => {
     if (carouselImages.length < 2) return;
     const el = carouselRef.current;
     if (!el) return;
 
-    const startTicking = () => {
-      if (timerRef.current) return;
-      timerRef.current = setInterval(() => {
-        if (isVisibleRef.current) {
-          // Simply increment — handleTransitionEnd handles the clone→0 reset.
-          setTrackIndex(prev => prev + 1);
-        }
-      }, 1000);
-    };
-
     const stopTicking = () => {
       if (timerRef.current) {
-        clearInterval(timerRef.current);
+        clearTimeout(timerRef.current);
         timerRef.current = null;
       }
     };
@@ -125,28 +143,141 @@ export default function IdeaCard({
     const observer = new IntersectionObserver(
       ([entry]) => {
         isVisibleRef.current = entry.isIntersecting;
-        if (entry.isIntersecting) startTicking();
-        else stopTicking();
+        if (entry.isIntersecting) {
+          if (!isUserHoldingRef.current && !isTransitioningRef.current) {
+            scheduleNextSlide(2000);
+          }
+        } else {
+          stopTicking();
+        }
       },
       { threshold: 0.01 }
     );
 
     observer.observe(el);
-    return () => { observer.disconnect(); stopTicking(); };
-  }, [carouselImages.length]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { 
+      observer.disconnect(); 
+      stopTicking(); 
+    };
+  }, [carouselImages.length, scheduleNextSlide]);
 
+  // Manual navigation handlers
   const handlePrevImage = (e) => {
-    e.stopPropagation();
+    if (e) e.stopPropagation();
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    isTransitioningRef.current = true;
     setIsSliding(true);
     // When at index 0 go backwards to the last real image.
     setTrackIndex(prev => (prev <= 0 ? carouselImages.length - 1 : prev - 1));
   };
 
   const handleNextImage = (e) => {
-    e.stopPropagation();
+    if (e) e.stopPropagation();
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    isTransitioningRef.current = true;
     setIsSliding(true);
     // Allow advancing into the clone (position N); handleTransitionEnd will reset.
     setTrackIndex(prev => Math.min(prev + 1, carouselImages.length));
+  };
+
+  const handleDotClick = (dotIdx) => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    if (dotIdx === realIndex) {
+      scheduleNextSlide(2000);
+      return;
+    }
+    isTransitioningRef.current = true;
+    setIsSliding(true);
+    setTrackIndex(dotIdx);
+  };
+
+  // Desktop: Mouse down on image -> pause immediately
+  const handleMouseDown = () => {
+    if (carouselImages.length < 2) return;
+    isUserHoldingRef.current = true;
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+
+  // Desktop: Mouse up or mouse leaves -> resume with 2s hold on current image
+  const handleMouseUp = () => {
+    if (carouselImages.length < 2) return;
+    if (isUserHoldingRef.current) {
+      isUserHoldingRef.current = false;
+      if (!isTransitioningRef.current) {
+        scheduleNextSlide(2000);
+      }
+    }
+  };
+
+  const handleMouseLeave = () => {
+    if (carouselImages.length < 2) return;
+    if (isUserHoldingRef.current) {
+      isUserHoldingRef.current = false;
+      if (!isTransitioningRef.current) {
+        scheduleNextSlide(2000);
+      }
+    }
+  };
+
+  // Mobile: Touch and hold -> pause immediately
+  const handleTouchStart = (e) => {
+    if (carouselImages.length < 2) return;
+    isUserHoldingRef.current = true;
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    if (e.touches && e.touches[0]) {
+      touchStartXRef.current = e.touches[0].clientX;
+      touchStartYRef.current = e.touches[0].clientY;
+    }
+  };
+
+  // Mobile: Finger released -> resume with 2s hold, or process horizontal swipe
+  const handleTouchEnd = (e) => {
+    if (carouselImages.length < 2) return;
+    isUserHoldingRef.current = false;
+
+    if (e.changedTouches && e.changedTouches[0]) {
+      const deltaX = e.changedTouches[0].clientX - touchStartXRef.current;
+      const deltaY = e.changedTouches[0].clientY - touchStartYRef.current;
+
+      // Horizontal swipe threshold: > 40px and more horizontal than vertical
+      if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY)) {
+        if (deltaX < 0) {
+          handleNextImage(e);
+          return;
+        } else {
+          handlePrevImage(e);
+          return;
+        }
+      }
+    }
+
+    // Touch and hold release without swipe -> resume from current image after 2s
+    if (!isTransitioningRef.current) {
+      scheduleNextSlide(2000);
+    }
+  };
+
+  const handleTouchCancel = () => {
+    if (carouselImages.length < 2) return;
+    isUserHoldingRef.current = false;
+    if (!isTransitioningRef.current) {
+      scheduleNextSlide(2000);
+    }
   };
 
   const handleToggleExpand = () => {
@@ -225,8 +356,17 @@ export default function IdeaCard({
           />
         </p>
 
-        {/* 16:9 Hero Image — Smooth Horizontal Sliding Carousel */}
-        <div ref={carouselRef} className="relative aspect-video w-full rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800 shadow-2xs">
+        {/* 16:9 Hero Image — Smooth Horizontal Sliding Carousel with 2s Hold & Touch/Click Pause */}
+        <div 
+          ref={carouselRef} 
+          onMouseDown={handleMouseDown}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseLeave}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchCancel}
+          className="relative aspect-video w-full rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800 shadow-2xs select-none"
+        >
 
           {/* Horizontal strip: all slides (+ clone) laid out side-by-side.
               Sliding the strip with translateX creates the physical movement effect. */}
@@ -235,7 +375,7 @@ export default function IdeaCard({
             style={{
               width: `${totalSlides * 100}%`,
               transform: `translateX(-${(trackIndex / totalSlides) * 100}%)`,
-              transition: isSliding ? 'transform 420ms cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none',
+              transition: isSliding ? 'transform 800ms cubic-bezier(0.25, 0.46, 0.45, 0.94)' : 'none',
               willChange: 'transform',
             }}
             onTransitionEnd={handleTransitionEnd}
@@ -248,7 +388,7 @@ export default function IdeaCard({
                 <img
                   src={img}
                   alt={`${idea.title} showcase photo ${(i % carouselImages.length) + 1}`}
-                  className="w-full h-full object-cover select-none"
+                  className="w-full h-full object-cover select-none pointer-events-none"
                   loading="lazy"
                   draggable={false}
                 />
@@ -261,6 +401,8 @@ export default function IdeaCard({
             <>
               <button
                 onClick={handlePrevImage}
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
                 className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/50 hover:bg-black/75 text-white flex items-center justify-center backdrop-blur-xs transition-transform active:scale-90 z-10"
                 aria-label="Previous image"
               >
@@ -268,6 +410,8 @@ export default function IdeaCard({
               </button>
               <button
                 onClick={handleNextImage}
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
                 className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/50 hover:bg-black/75 text-white flex items-center justify-center backdrop-blur-xs transition-transform active:scale-90 z-10"
                 aria-label="Next image"
               >
@@ -275,11 +419,15 @@ export default function IdeaCard({
               </button>
 
               {/* Dot Indicators — reflect real image position (excludes clone) */}
-              <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur-md px-2.5 py-1 rounded-full flex items-center gap-1.5 z-10">
+              <div 
+                className="absolute bottom-2.5 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur-md px-2.5 py-1 rounded-full flex items-center gap-1.5 z-10"
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+              >
                 {carouselImages.map((_, dotIdx) => (
                   <button
                     key={dotIdx}
-                    onClick={() => { setIsSliding(true); setTrackIndex(dotIdx); }}
+                    onClick={() => handleDotClick(dotIdx)}
                     className={`h-1.5 rounded-full transition-all ${
                       dotIdx === realIndex ? 'w-4 bg-white' : 'w-1.5 bg-white/50'
                     }`}

@@ -1,15 +1,15 @@
 // src/app/preview/[id]/page.js - Secure Draft Preview System
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { Eye, ShieldAlert, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { Eye, ShieldAlert } from 'lucide-react';
 import Header from '@/components/Header';
 import IdeaCard from '@/components/IdeaCard';
 import { getDraftIdeas, getPublishedIdeas } from '@/lib/ideasStore';
 
-export default function DraftPreviewPage() {
+function DraftPreviewContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const [draft, setDraft] = useState(null);
@@ -23,13 +23,33 @@ export default function DraftPreviewPage() {
   }, [searchParams]);
 
   useEffect(() => {
+    const targetId = params?.id;
+    if (!targetId) return;
+
     const drafts = getDraftIdeas();
     const published = getPublishedIdeas();
-    const matched = drafts.find(d => d.id === params.id) || published.find(p => p.id === params.id);
+    let matched = drafts.find(d => d.id === targetId || d.slug === targetId) 
+               || published.find(p => p.id === targetId || p.slug === targetId);
+
+    // Fallback: check session storage draft from active admin editor
+    if (!matched && typeof window !== 'undefined') {
+      try {
+        const temp = sessionStorage.getItem('sei_preview_temp_draft');
+        if (temp) {
+          const parsed = JSON.parse(temp);
+          if (parsed && (parsed.id === targetId || parsed.slug === targetId || targetId === 'current-draft')) {
+            matched = parsed;
+          }
+        }
+      } catch (err) {
+        console.warn('Error reading preview temp draft:', err);
+      }
+    }
+
     if (matched) {
       setDraft(matched);
     }
-  }, [params.id]);
+  }, [params]);
 
   if (!isAuthorized) {
     return (
@@ -53,7 +73,8 @@ export default function DraftPreviewPage() {
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <div className="text-center">
           <h2 className="text-base font-bold text-slate-800">Draft Not Found</h2>
-          <Link href="/admin" className="text-xs text-teal-700 font-bold underline mt-2 block">
+          <p className="text-xs text-slate-500 mt-1 mb-3">The requested blueprint draft could not be loaded.</p>
+          <Link href="/admin" className="text-xs text-teal-700 font-bold underline">
             Return to Admin Studio
           </Link>
         </div>
@@ -87,5 +108,17 @@ export default function DraftPreviewPage() {
         />
       </main>
     </div>
+  );
+}
+
+export default function DraftPreviewPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-4">
+        <div className="text-xs font-medium text-slate-500">Loading preview...</div>
+      </div>
+    }>
+      <DraftPreviewContent />
+    </Suspense>
   );
 }

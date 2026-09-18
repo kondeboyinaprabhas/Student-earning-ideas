@@ -34,6 +34,16 @@ function safeSet(key, value) {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (e) {
     console.warn(`[Storage] Write error for ${key}:`, e);
+    // If browser localStorage quota exceeded, clear non-critical caches and retry
+    if (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014) {
+      try {
+        localStorage.removeItem(STORAGE_KEYS.VERSIONS);
+        localStorage.removeItem('sei_audit_log_v1');
+        localStorage.setItem(key, JSON.stringify(value));
+      } catch (retryError) {
+        console.warn(`[Storage] Retry write failed for ${key}:`, retryError);
+      }
+    }
   }
 }
 
@@ -207,16 +217,33 @@ export function getVersionHistory(ideaId) {
 }
 
 export function recordVersionHistory(ideaId, snapshot) {
-  const allHistory = safeGet(STORAGE_KEYS.VERSIONS, {});
-  const versions = allHistory[ideaId] || [];
-  const newEntry = {
-    versionId: `v_${Date.now()}`,
-    timestamp: new Date().toISOString(),
-    snapshot: JSON.parse(JSON.stringify(snapshot))
-  };
-  // Keep last 10 versions
-  allHistory[ideaId] = [newEntry, ...versions].slice(0, 10);
-  safeSet(STORAGE_KEYS.VERSIONS, allHistory);
+  if (!snapshot || !ideaId) return;
+  try {
+    const allHistory = safeGet(STORAGE_KEYS.VERSIONS, {});
+    const versions = allHistory[ideaId] || [];
+
+    // Lighten snapshot: do not duplicate massive base64 images into history
+    const cleanSnapshot = { ...snapshot };
+    if (typeof cleanSnapshot.heroImage === 'string' && cleanSnapshot.heroImage.startsWith('data:')) {
+      cleanSnapshot.heroImage = '';
+    }
+    if (Array.isArray(cleanSnapshot.carouselImages)) {
+      cleanSnapshot.carouselImages = cleanSnapshot.carouselImages.map(img => 
+        typeof img === 'string' && img.startsWith('data:') ? '' : img
+      );
+    }
+
+    const newEntry = {
+      versionId: `v_${Date.now()}`,
+      timestamp: new Date().toISOString(),
+      snapshot: cleanSnapshot
+    };
+    // Keep last 3 versions to preserve quota
+    allHistory[ideaId] = [newEntry, ...versions].slice(0, 3);
+    safeSet(STORAGE_KEYS.VERSIONS, allHistory);
+  } catch (err) {
+    console.warn('[Storage] recordVersionHistory error:', err);
+  }
 }
 
 // Likes system

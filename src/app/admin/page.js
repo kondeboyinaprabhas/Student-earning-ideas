@@ -1109,8 +1109,20 @@ export default function AdminPage() {
 
                         {/* Preview Link */}
                         <Link
-                          href={`/preview/${formData.id}`}
+                          href={`/preview/${formData.id || 'current-draft'}`}
                           target="_blank"
+                          onClick={() => {
+                            if (formData.id) {
+                              saveDraftIdea(formData);
+                            }
+                            if (typeof window !== 'undefined') {
+                              try {
+                                sessionStorage.setItem('sei_preview_temp_draft', JSON.stringify(formData));
+                              } catch (e) {
+                                console.warn('Could not store temp preview draft:', e);
+                              }
+                            }
+                          }}
                           className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold px-3 py-2.5 rounded-xl transition-all flex items-center gap-1"
                           title="Shareable Preview Link"
                         >

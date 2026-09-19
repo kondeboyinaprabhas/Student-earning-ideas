@@ -145,8 +145,8 @@ export default function AdminPage() {
   }, []);
 
   // Sync Local Ideas Data
-  const refreshLocalData = useCallback(() => {
-    setPublishedIdeas(getPublishedIdeas());
+  const refreshLocalData = useCallback(async () => {
+    setPublishedIdeas(await getPublishedIdeas());
     setDraftIdeas(getDraftIdeas());
     setScheduledIdeas(getScheduledIdeas());
     setTrashIdeas(getTrashIdeas());
@@ -326,7 +326,7 @@ export default function AdminPage() {
 
 
   // Publish validation and action
-  const handlePublish = (adminEmail = 'Founder Admin') => {
+  const handlePublish = async (adminEmail = 'Founder Admin') => {
     const { canPublish, issues } = runQualityGuardCheck(formData, publishedIdeas);
     if (!canPublish) {
       alert(`Cannot publish yet. Please fix blocking issues:\n\n${issues.filter(i => i.critical).map(i => `• ${i.message}`).join('\n')}`);
@@ -359,8 +359,8 @@ export default function AdminPage() {
       }
     };
 
-    savePublishedIdea(finalIdea);
-    refreshLocalData();
+    await savePublishedIdea(finalIdea);
+    await refreshLocalData();
     handleLogAction({
       action: 'Publish',
       entityId: finalIdea.id,
@@ -422,9 +422,9 @@ export default function AdminPage() {
   };
 
   // Unpublish
-  const handleUnpublishIdea = (id, adminEmail = 'Founder Admin') => {
-    unpublishIdea(id);
-    refreshLocalData();
+  const handleUnpublishIdea = async (id, adminEmail = 'Founder Admin') => {
+    await unpublishIdea(id);
+    await refreshLocalData();
     handleLogAction({
       action: 'Unpublish',
       entityId: id,
@@ -436,9 +436,9 @@ export default function AdminPage() {
   };
 
   // Soft Delete
-  const handleSoftDeleteIdea = (id, origin = 'published', adminEmail = 'Founder Admin') => {
-    softDeleteIdea(id, origin);
-    refreshLocalData();
+  const handleSoftDeleteIdea = async (id, origin = 'published', adminEmail = 'Founder Admin') => {
+    await softDeleteIdea(id, origin);
+    await refreshLocalData();
     handleLogAction({
       action: 'Soft Delete',
       entityId: id,
@@ -450,9 +450,9 @@ export default function AdminPage() {
   };
 
   // Restore Idea
-  const handleRestoreIdea = (id, adminEmail = 'Founder Admin') => {
-    restoreIdea(id);
-    refreshLocalData();
+  const handleRestoreIdea = async (id, adminEmail = 'Founder Admin') => {
+    await restoreIdea(id);
+    await refreshLocalData();
     handleLogAction({
       action: 'Restore',
       entityId: id,
@@ -464,9 +464,9 @@ export default function AdminPage() {
   };
 
   // Permanent Delete
-  const handlePermanentDeleteIdea = (id, adminEmail = 'Founder Admin') => {
-    permanentDeleteIdea(id);
-    refreshLocalData();
+  const handlePermanentDeleteIdea = async (id, adminEmail = 'Founder Admin') => {
+    await permanentDeleteIdea(id);
+    await refreshLocalData();
     handleLogAction({
       action: 'Permanent Delete',
       entityId: id,
@@ -483,9 +483,9 @@ export default function AdminPage() {
     setVersionModalOpen(true);
   };
 
-  const handleRollback = (snapshot) => {
-    savePublishedIdea(snapshot);
-    refreshLocalData();
+  const handleRollback = async (snapshot) => {
+    await savePublishedIdea(snapshot);
+    await refreshLocalData();
     showToast(`Successfully rolled back to snapshot!`);
   };
 

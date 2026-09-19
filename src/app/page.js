@@ -79,18 +79,18 @@ export default function HomePage() {
 
 
   useEffect(() => {
-    const ideas = getPublishedIdeas();
-    setRawIdeas(ideas);
     setSavedIds(getSavedIds());
     setMaintenance(getMaintenanceConfig());
 
-    // Fetch persisted Global Display Frequency and active Recommended Resources
+    // Fetch ideas from Firestore + resources + global frequency together
     const loadResourcesAndFrequency = async () => {
       try {
-        const [resources, freq] = await Promise.all([
+        const [ideas, resources, freq] = await Promise.all([
+          getPublishedIdeas(),
           fetchRecommendedResources(),
           getGlobalFrequency(),
         ]);
+        setRawIdeas(Array.isArray(ideas) ? ideas : []);
         if (Array.isArray(resources)) {
           // Use only active Recommended Resources
           const activeOnly = resources.filter((r) => r.active !== false);
@@ -100,7 +100,7 @@ export default function HomePage() {
           setGlobalFrequency(freq);
         }
       } catch (err) {
-        console.error('Failed to load recommended resources or global frequency:', err);
+        console.error('Failed to load ideas or recommended resources:', err);
       }
     };
 

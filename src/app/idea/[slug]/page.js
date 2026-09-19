@@ -22,15 +22,17 @@ export default function IdeaDetailPage() {
   const [toastMessage, setToastMessage] = useState(null);
 
   useEffect(() => {
-    const all = getPublishedIdeas();
-    setIdeas(all);
-    setSavedIds(getSavedIds());
-    const matched = all.find(i => i.slug === params.slug || i.id === params.slug);
-    if (matched) {
-      setCurrentIdea(matched);
-      // Update page title & meta tags dynamically
-      document.title = `${matched.title} | Student Earning Ideas`;
-    }
+    (async () => {
+      const all = await getPublishedIdeas();
+      setIdeas(all);
+      setSavedIds(getSavedIds());
+      const matched = all.find(i => i.slug === params.slug || i.id === params.slug);
+      if (matched) {
+        setCurrentIdea(matched);
+        // Update page title & meta tags dynamically
+        document.title = `${matched.title} | Student Earning Ideas`;
+      }
+    })();
   }, [params.slug]);
 
   const showToast = (msg) => {

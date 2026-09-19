@@ -17,10 +17,12 @@ export default function SavedPage() {
   const [toastMessage, setToastMessage] = useState(null);
 
   useEffect(() => {
-    const all = getPublishedIdeas();
-    const saved = getSavedIds();
-    setIdeas(all);
-    setSavedIds(saved);
+    (async () => {
+      const all = await getPublishedIdeas();
+      const saved = getSavedIds();
+      setIdeas(all);
+      setSavedIds(saved);
+    })();
   }, []);
 
   const savedIdeas = ideas.filter(i => savedIds.includes(i.id));

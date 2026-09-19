@@ -26,29 +26,31 @@ function DraftPreviewContent() {
     const targetId = params?.id;
     if (!targetId) return;
 
-    const drafts = getDraftIdeas();
-    const published = getPublishedIdeas();
-    let matched = drafts.find(d => d.id === targetId || d.slug === targetId) 
-               || published.find(p => p.id === targetId || p.slug === targetId);
+    (async () => {
+      const drafts = getDraftIdeas();
+      const published = await getPublishedIdeas();
+      let matched = drafts.find(d => d.id === targetId || d.slug === targetId)
+                 || published.find(p => p.id === targetId || p.slug === targetId);
 
-    // Fallback: check session storage draft from active admin editor
-    if (!matched && typeof window !== 'undefined') {
-      try {
-        const temp = sessionStorage.getItem('sei_preview_temp_draft');
-        if (temp) {
-          const parsed = JSON.parse(temp);
-          if (parsed && (parsed.id === targetId || parsed.slug === targetId || targetId === 'current-draft')) {
-            matched = parsed;
+      // Fallback: check session storage draft from active admin editor
+      if (!matched && typeof window !== 'undefined') {
+        try {
+          const temp = sessionStorage.getItem('sei_preview_temp_draft');
+          if (temp) {
+            const parsed = JSON.parse(temp);
+            if (parsed && (parsed.id === targetId || parsed.slug === targetId || targetId === 'current-draft')) {
+              matched = parsed;
+            }
           }
+        } catch (err) {
+          console.warn('Error reading preview temp draft:', err);
         }
-      } catch (err) {
-        console.warn('Error reading preview temp draft:', err);
       }
-    }
 
-    if (matched) {
-      setDraft(matched);
-    }
+      if (matched) {
+        setDraft(matched);
+      }
+    })();
   }, [params]);
 
   if (!isAuthorized) {

@@ -32,6 +32,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Blueprints (published ideas via ideasStore) — public read, admin write
+    match /blueprints/{blueprintId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // Drafts and scheduled blueprints (admin-only)
     match /drafts/{draftId} {
       allow read, write: if isAdmin();

@@ -1,5 +1,9 @@
 // ideasStore.js - Production State & Local/Firestore Synchronizer
+
 import { SEED_IDEAS } from './seedData.js';
+import { db } from './firebase';
+import { collection, doc, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
+import { COLLECTIONS } from './firestoreStore';
 
 const STORAGE_KEYS = {
   PUBLISHED: 'sei_published_ideas_v1',
@@ -34,132 +38,200 @@ function safeSet(key, value) {
     localStorage.setItem(key, JSON.stringify(value));
   } catch (e) {
     console.warn(`[Storage] Write error for ${key}:`, e);
-    // If browser localStorage quota exceeded, clear non-critical caches and retry
-    if (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014) {
+
+    if (
+      e.name === 'QuotaExceededError' ||
+      e.code === 22 ||
+      e.code === 1014
+    ) {
       try {
         localStorage.removeItem(STORAGE_KEYS.VERSIONS);
         localStorage.removeItem('sei_audit_log_v1');
         localStorage.setItem(key, JSON.stringify(value));
       } catch (retryError) {
-        console.warn(`[Storage] Retry write failed for ${key}:`, retryError);
+        console.warn(
+          `[Storage] Retry write failed for ${key}:`,
+          retryError
+        );
       }
     }
   }
 }
 
+// Sync likes-count cache so toggleLike can remain callable without async
+const LIKES_COUNT_CACHE_KEY = 'sei_likes_count_v1';
+
+function getLikesCountCache() {
+  return safeGet(LIKES_COUNT_CACHE_KEY, {});
+}
+
+function setLikesCountCache(ideaId, count) {
+  const cache = getLikesCountCache();
+  cache[ideaId] = count;
+  safeSet(LIKES_COUNT_CACHE_KEY, cache);
+}
+
 // Published ideas manager
-export function getPublishedIdeas() {
-  const stored = safeGet(STORAGE_KEYS.PUBLISHED, null);
-  if (!stored || !Array.isArray(stored) || stored.length === 0) {
-    safeSet(STORAGE_KEYS.PUBLISHED, SEED_IDEAS);
+export async function getPublishedIdeas() {
+  try {
+    const snap = await getDocs(collection(db, COLLECTIONS.BLUEPRINTS));
+
+    if (!snap.empty) {
+      const ideas = snap.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+      }));
+      // Populate the sync likes-count cache for toggleLike
+      const cache = {};
+      ideas.forEach(i => { if (typeof i.likes === 'number') cache[i.id] = i.likes; });
+      safeSet(LIKES_COUNT_CACHE_KEY, cache);
+      return ideas;
+    }
+
+    const stored = safeGet(STORAGE_KEYS.PUBLISHED, null);
+
+    if (stored?.length) {
+      for (const idea of stored) {
+        await setDoc(
+          doc(db, COLLECTIONS.BLUEPRINTS, idea.id),
+          idea
+        );
+      }
+      // Populate likes cache from localStorage data too
+      const cache = {};
+      stored.forEach(i => { if (typeof i.likes === 'number') cache[i.id] = i.likes; });
+      safeSet(LIKES_COUNT_CACHE_KEY, cache);
+      return stored;
+    }
+
     return SEED_IDEAS;
+  } catch (e) {
+    console.warn(e);
+    return safeGet(STORAGE_KEYS.PUBLISHED, SEED_IDEAS);
   }
-  return stored;
 }
 
-export function savePublishedIdea(idea) {
-  const current = getPublishedIdeas();
-  const index = current.findIndex(i => i.id === idea.id);
-  
-  // Record version history before saving
-  recordVersionHistory(idea.id, idea);
+export async function savePublishedIdea(idea) {
+  const finalIdea = {
+    ...idea,
+    lastUpdated: new Date().toLocaleDateString('en-US', {
+      month: 'short',
+      year: 'numeric'
+    })
+  };
 
-  let updated;
-  if (index >= 0) {
-    updated = [...current];
-    updated[index] = { ...idea, lastUpdated: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) };
-  } else {
-    updated = [{ ...idea, lastUpdated: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) }, ...current];
-  }
-  safeSet(STORAGE_KEYS.PUBLISHED, updated);
-  
-  // Clean up if it was previously in drafts
+  recordVersionHistory(idea.id, finalIdea);
+
+  await setDoc(
+    doc(db, COLLECTIONS.BLUEPRINTS, finalIdea.id),
+    finalIdea
+  );
+
   removeDraftIdea(idea.id);
-  return updated;
+
+  return finalIdea;
 }
 
-export function deletePublishedIdea(id) {
-  const current = getPublishedIdeas();
-  const updated = current.filter(i => i.id !== id);
-  safeSet(STORAGE_KEYS.PUBLISHED, updated);
-  return updated;
+export async function deletePublishedIdea(id) {
+  await deleteDoc(doc(db, COLLECTIONS.BLUEPRINTS, id));
 }
 
-export function unpublishIdea(id) {
-  const published = getPublishedIdeas();
+export async function unpublishIdea(id) {
+  const published = await getPublishedIdeas();
   const target = published.find(i => i.id === id);
-  if (!target) return published;
-  // Remove from published
-  const updatedPublished = published.filter(i => i.id !== id);
-  safeSet(STORAGE_KEYS.PUBLISHED, updatedPublished);
-  // Add to drafts with status draft
-  saveDraftIdea({ ...target, status: 'Draft', unpublishedAt: new Date().toISOString() });
-  return updatedPublished;
+
+  if (!target) return;
+
+  await deletePublishedIdea(id);
+
+  saveDraftIdea({
+    ...target,
+    status: 'Draft',
+    unpublishedAt: new Date().toISOString()
+  });
 }
 
-// Trash / Soft-delete manager
+// Trash manager
 export function getTrashIdeas() {
   return safeGet(STORAGE_KEYS.TRASH, []);
 }
 
-export function softDeleteIdea(id, origin = 'published') {
+export async function softDeleteIdea(id, origin = 'published') {
   let target = null;
+
   if (origin === 'published') {
-    const published = getPublishedIdeas();
+    const published = await getPublishedIdeas();
     target = published.find(i => i.id === id);
+
     if (target) {
-      safeSet(STORAGE_KEYS.PUBLISHED, published.filter(i => i.id !== id));
+      await deletePublishedIdea(id);
     }
   }
+
   if (!target) {
     const drafts = getDraftIdeas();
     target = drafts.find(i => i.id === id);
+
     if (target) {
-      safeSet(STORAGE_KEYS.DRAFTS, drafts.filter(i => i.id !== id));
+      safeSet(
+        STORAGE_KEYS.DRAFTS,
+        drafts.filter(i => i.id !== id)
+      );
     }
   }
+
   if (target) {
     const currentTrash = getTrashIdeas();
-    const updatedTrash = [{
-      ...target,
-      deletedAt: new Date().toISOString(),
-      deletedOrigin: origin,
-      deleted: true
-    }, ...currentTrash.filter(i => i.id !== id)];
+
+    const updatedTrash = [
+      {
+        ...target,
+        deletedAt: new Date().toISOString(),
+        deletedOrigin: origin,
+        deleted: true
+      },
+      ...currentTrash.filter(i => i.id !== id)
+    ];
+
     safeSet(STORAGE_KEYS.TRASH, updatedTrash);
     return true;
   }
+
   return false;
 }
 
-export function restoreIdea(id) {
+export async function restoreIdea(id) {
   const trash = getTrashIdeas();
   const target = trash.find(i => i.id === id);
+
   if (!target) return false;
-  // Remove from trash
+
   const updatedTrash = trash.filter(i => i.id !== id);
   safeSet(STORAGE_KEYS.TRASH, updatedTrash);
-  
+
   const cleanTarget = { ...target };
+
   delete cleanTarget.deletedAt;
   delete cleanTarget.deletedOrigin;
   delete cleanTarget.deleted;
 
   if (target.deletedOrigin === 'published') {
-    savePublishedIdea(cleanTarget);
+    await savePublishedIdea(cleanTarget);
   } else {
     saveDraftIdea(cleanTarget);
   }
+
   return true;
 }
 
-export function permanentDeleteIdea(id) {
+export async function permanentDeleteIdea(id) {
   const trash = getTrashIdeas();
   const updatedTrash = trash.filter(i => i.id !== id);
   safeSet(STORAGE_KEYS.TRASH, updatedTrash);
-  // Also ensure it is removed from published & drafts just in case
-  deletePublishedIdea(id);
+
+  await deletePublishedIdea(id);
   removeDraftIdea(id);
+
   return updatedTrash;
 }
 
@@ -171,22 +243,39 @@ export function getDraftIdeas() {
 export function saveDraftIdea(draft) {
   const current = getDraftIdeas();
   const index = current.findIndex(d => d.id === draft.id);
+
   let updated;
+
   if (index >= 0) {
     updated = [...current];
-    updated[index] = { ...draft, status: 'Draft', updatedAt: new Date().toISOString() };
+    updated[index] = {
+      ...draft,
+      status: 'Draft',
+      updatedAt: new Date().toISOString()
+    };
   } else {
-    updated = [{ ...draft, status: 'Draft', updatedAt: new Date().toISOString() }, ...current];
+    updated = [
+      {
+        ...draft,
+        status: 'Draft',
+        updatedAt: new Date().toISOString()
+      },
+      ...current
+    ];
   }
+
   safeSet(STORAGE_KEYS.DRAFTS, updated);
   recordVersionHistory(draft.id, draft);
+
   return updated;
 }
 
 export function removeDraftIdea(id) {
   const current = getDraftIdeas();
   const updated = current.filter(d => d.id !== id);
+
   safeSet(STORAGE_KEYS.DRAFTS, updated);
+
   return updated;
 }
 
@@ -198,19 +287,28 @@ export function getScheduledIdeas() {
 export function saveScheduledIdea(idea, publishAt) {
   const current = getScheduledIdeas();
   const index = current.findIndex(s => s.id === idea.id);
-  const scheduledItem = { ...idea, scheduledFor: publishAt, scheduledAt: new Date().toISOString() };
+
+  const scheduledItem = {
+    ...idea,
+    scheduledFor: publishAt,
+    scheduledAt: new Date().toISOString()
+  };
+
   let updated;
+
   if (index >= 0) {
     updated = [...current];
     updated[index] = scheduledItem;
   } else {
     updated = [scheduledItem, ...current];
   }
+
   safeSet(STORAGE_KEYS.SCHEDULED, updated);
+
   return updated;
 }
 
-// Version History & Rollback System
+// Version History
 export function getVersionHistory(ideaId) {
   const allHistory = safeGet(STORAGE_KEYS.VERSIONS, {});
   return allHistory[ideaId] || [];
@@ -218,17 +316,22 @@ export function getVersionHistory(ideaId) {
 
 export function recordVersionHistory(ideaId, snapshot) {
   if (!snapshot || !ideaId) return;
+
   try {
     const allHistory = safeGet(STORAGE_KEYS.VERSIONS, {});
     const versions = allHistory[ideaId] || [];
 
-    // Lighten snapshot: do not duplicate massive base64 images into history
     const cleanSnapshot = { ...snapshot };
-    if (typeof cleanSnapshot.heroImage === 'string' && cleanSnapshot.heroImage.startsWith('data:')) {
+
+    if (
+      typeof cleanSnapshot.heroImage === 'string' &&
+      cleanSnapshot.heroImage.startsWith('data:')
+    ) {
       cleanSnapshot.heroImage = '';
     }
+
     if (Array.isArray(cleanSnapshot.carouselImages)) {
-      cleanSnapshot.carouselImages = cleanSnapshot.carouselImages.map(img => 
+      cleanSnapshot.carouselImages = cleanSnapshot.carouselImages.map(img =>
         typeof img === 'string' && img.startsWith('data:') ? '' : img
       );
     }
@@ -238,8 +341,9 @@ export function recordVersionHistory(ideaId, snapshot) {
       timestamp: new Date().toISOString(),
       snapshot: cleanSnapshot
     };
-    // Keep last 3 versions to preserve quota
+
     allHistory[ideaId] = [newEntry, ...versions].slice(0, 3);
+
     safeSet(STORAGE_KEYS.VERSIONS, allHistory);
   } catch (err) {
     console.warn('[Storage] recordVersionHistory error:', err);
@@ -255,30 +359,14 @@ export function toggleLike(ideaId) {
   const map = getLikedMap();
   const isLiked = !!map[ideaId];
   const nextState = !isLiked;
+
   map[ideaId] = nextState;
   safeSet(STORAGE_KEYS.LIKES, map);
 
-  // Update like count in published ideas so the real count persists across page refreshes
-  const published = getPublishedIdeas();
-  const index = published.findIndex(i => i.id === ideaId);
-  if (index >= 0) {
-    const target = published[index];
-    const currentLikes = typeof target.likes === 'number' ? target.likes : 0;
-    const newLikes = nextState ? currentLikes + 1 : Math.max(0, currentLikes - 1);
-    published[index] = { ...target, likes: newLikes };
-    safeSet(STORAGE_KEYS.PUBLISHED, published);
-  } else {
-    // Also check drafts (for draft preview mode)
-    const drafts = getDraftIdeas();
-    const draftIndex = drafts.findIndex(d => d.id === ideaId);
-    if (draftIndex >= 0) {
-      const target = drafts[draftIndex];
-      const currentLikes = typeof target.likes === 'number' ? target.likes : 0;
-      const newLikes = nextState ? currentLikes + 1 : Math.max(0, currentLikes - 1);
-      drafts[draftIndex] = { ...target, likes: newLikes };
-      safeSet(STORAGE_KEYS.DRAFTS, drafts);
-    }
-  }
+  // Update the sync likes-count cache (populated by getPublishedIdeas on load)
+  const currentCount = getLikesCountCache()[ideaId];
+  const currentLikes = typeof currentCount === 'number' ? currentCount : 0;
+  setLikesCountCache(ideaId, nextState ? currentLikes + 1 : Math.max(0, currentLikes - 1));
 
   return nextState;
 }
@@ -291,41 +379,56 @@ export function getSavedIds() {
 export function toggleSave(ideaId) {
   const current = getSavedIds();
   const exists = current.includes(ideaId);
-  const updated = exists ? current.filter(id => id !== ideaId) : [...current, ideaId];
+
+  const updated = exists
+    ? current.filter(id => id !== ideaId)
+    : [...current, ideaId];
+
   safeSet(STORAGE_KEYS.SAVES, updated);
+
   return !exists;
 }
 
-// Viewed ideas tracking (for unseen first logic)
+// Viewed ideas
 export function getViewedIds() {
   return safeGet(STORAGE_KEYS.VIEWED, []);
 }
 
 export function markAsViewed(ideaId) {
   const current = getViewedIds();
+
   if (!current.includes(ideaId)) {
     const updated = [...current, ideaId];
     safeSet(STORAGE_KEYS.VIEWED, updated);
     return updated;
   }
+
   return current;
 }
 
-// Checklist state manager
+// Checklist
 export function getChecklistState(ideaId) {
   const all = safeGet(STORAGE_KEYS.CHECKLISTS, {});
   return all[ideaId] || {};
 }
 
-export function setChecklistItem(ideaId, checkId, completed) {
+export function setChecklistItem(
+  ideaId,
+  checkId,
+  completed
+) {
   const all = safeGet(STORAGE_KEYS.CHECKLISTS, {});
+
   if (!all[ideaId]) all[ideaId] = {};
+
   all[ideaId][checkId] = completed;
+
   safeSet(STORAGE_KEYS.CHECKLISTS, all);
+
   return all[ideaId];
 }
 
-// First-time scroll hint
+// Scroll hint
 export function getScrollHintDismissed() {
   return safeGet(STORAGE_KEYS.SCROLL_HINT, false);
 }
@@ -334,16 +437,19 @@ export function setScrollHintDismissed() {
   safeSet(STORAGE_KEYS.SCROLL_HINT, true);
 }
 
-// Maintenance Mode
+// Maintenance mode
 export function getMaintenanceConfig() {
   const cfg = safeGet(STORAGE_KEYS.MAINTENANCE, {
     enabled: false,
     scheduledLaunch: null,
-    message: "We are polishing new 2026 student earning blueprints. Launching soon!"
+    message:
+      'We are polishing new 2026 student earning blueprints. Launching soon!'
   });
+
   if (cfg && cfg.bypassPassword !== undefined) {
     delete cfg.bypassPassword;
   }
+
   return cfg;
 }
 
@@ -351,12 +457,15 @@ export function setMaintenanceConfig(config) {
   const clean = {
     enabled: !!config.enabled,
     scheduledLaunch: config.scheduledLaunch || null,
-    message: config.message || "We are polishing new 2026 student earning blueprints. Launching soon!"
+    message:
+      config.message ||
+      'We are polishing new 2026 student earning blueprints. Launching soon!'
   };
+
   safeSet(STORAGE_KEYS.MAINTENANCE, clean);
 }
 
-// Cookie Consent
+// Cookie consent
 export function getCookieConsent() {
   return safeGet(STORAGE_KEYS.COOKIE_CONSENT, false);
 }

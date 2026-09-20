@@ -10,12 +10,12 @@ export const SEED_IDEAS = [
     category: "Online Business",
     categoryColor: "emerald",
     trustBadges: ["Verified Idea", "100% Student Friendly", "Zero Stock Risk"],
-    heroImage: "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=1200&q=80",
+    heroImage: "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=720&q=75",
     carouselImages: [
-      "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=1200&q=80",
-      "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=1200&q=80",
-      "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=1200&q=80",
-      "https://images.unsplash.com/photo-1576566588028-4147f3842f27?auto=format&fit=crop&w=1200&q=80"
+      "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=720&q=75",
+      "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=720&q=75",
+      "https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?auto=format&fit=crop&w=720&q=75",
+      "https://images.unsplash.com/photo-1576566588028-4147f3842f27?auto=format&fit=crop&w=720&q=75"
     ],
     likes: 2420,
     shares: 890,
@@ -121,11 +121,11 @@ export const SEED_IDEAS = [
     category: "Online Business",
     categoryColor: "blue",
     trustBadges: ["High Demand", "Instant Payouts", "Skill Builder"],
-    heroImage: "https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?auto=format&fit=crop&w=1200&q=80",
+    heroImage: "https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?auto=format&fit=crop&w=720&q=75",
     carouselImages: [
-      "https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?auto=format&fit=crop&w=1200&q=80",
-      "https://images.unsplash.com/photo-1542744094-3a31f272c490?auto=format&fit=crop&w=1200&q=80",
-      "https://images.unsplash.com/photo-1581291518655-9523c932deda?auto=format&fit=crop&w=1200&q=80"
+      "https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?auto=format&fit=crop&w=720&q=75",
+      "https://images.unsplash.com/photo-1542744094-3a31f272c490?auto=format&fit=crop&w=720&q=75",
+      "https://images.unsplash.com/photo-1581291518655-9523c932deda?auto=format&fit=crop&w=720&q=75"
     ],
     likes: 1980,
     shares: 640,
@@ -230,11 +230,11 @@ export const SEED_IDEAS = [
     category: "Digital Business",
     categoryColor: "purple",
     trustBadges: ["Highest Demand 2026", "Global Dollars", "AI Accelerated"],
-    heroImage: "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?auto=format&fit=crop&w=1200&q=80",
+    heroImage: "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?auto=format&fit=crop&w=720&q=75",
     carouselImages: [
-      "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?auto=format&fit=crop&w=1200&q=80",
-      "https://images.unsplash.com/photo-1536240478700-b869070f9279?auto=format&fit=crop&w=1200&q=80",
-      "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=1200&q=80"
+      "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?auto=format&fit=crop&w=720&q=75",
+      "https://images.unsplash.com/photo-1536240478700-b869070f9279?auto=format&fit=crop&w=720&q=75",
+      "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=720&q=75"
     ],
     likes: 3120,
     shares: 1120,
@@ -339,11 +339,11 @@ export const SEED_IDEAS = [
     category: "Digital Business",
     categoryColor: "indigo",
     trustBadges: ["100% Passive", "One-Time Build", "Zero Shipping"],
-    heroImage: "https://images.unsplash.com/photo-1517842645767-c639042777db?auto=format&fit=crop&w=1200&q=80",
+    heroImage: "https://images.unsplash.com/photo-1517842645767-c639042777db?auto=format&fit=crop&w=720&q=75",
     carouselImages: [
-      "https://images.unsplash.com/photo-1517842645767-c639042777db?auto=format&fit=crop&w=1200&q=80",
-      "https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?auto=format&fit=crop&w=1200&q=80",
-      "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&w=1200&q=80"
+      "https://images.unsplash.com/photo-1517842645767-c639042777db?auto=format&fit=crop&w=720&q=75",
+      "https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?auto=format&fit=crop&w=720&q=75",
+      "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?auto=format&fit=crop&w=720&q=75"
     ],
     likes: 1850,
     shares: 540,
@@ -448,11 +448,11 @@ export const SEED_IDEAS = [
     category: "Education",
     categoryColor: "amber",
     trustBadges: ["Zero Investment", "High Hourly Rate", "Instant UPI Payouts"],
-    heroImage: "https://images.unsplash.com/photo-1577896851231-70ef18881754?auto=format&fit=crop&w=1200&q=80",
+    heroImage: "https://images.unsplash.com/photo-1577896851231-70ef18881754?auto=format&fit=crop&w=720&q=75",
     carouselImages: [
-      "https://images.unsplash.com/photo-1577896851231-70ef18881754?auto=format&fit=crop&w=1200&q=80",
-      "https://images.unsplash.com/photo-1588196749597-9ff075ee6b5b?auto=format&fit=crop&w=1200&q=80",
-      "https://images.unsplash.com/photo-1427504494785-3a9ca7044f45?auto=format&fit=crop&w=1200&q=80"
+      "https://images.unsplash.com/photo-1577896851231-70ef18881754?auto=format&fit=crop&w=720&q=75",
+      "https://images.unsplash.com/photo-1588196749597-9ff075ee6b5b?auto=format&fit=crop&w=720&q=75",
+      "https://images.unsplash.com/photo-1427504494785-3a9ca7044f45?auto=format&fit=crop&w=720&q=75"
     ],
     likes: 1640,
     shares: 480,
@@ -557,11 +557,11 @@ export const SEED_IDEAS = [
     category: "Offline Business",
     categoryColor: "rose",
     trustBadges: ["High Weekend Cash", "Team Friendly", "Real Networking"],
-    heroImage: "https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=1200&q=80",
+    heroImage: "https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=720&q=75",
     carouselImages: [
-      "https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=1200&q=80",
-      "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=1200&q=80",
-      "https://images.unsplash.com/photo-1528605248644-14dd04022da1?auto=format&fit=crop&w=1200&q=80"
+      "https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=720&q=75",
+      "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?auto=format&fit=crop&w=720&q=75",
+      "https://images.unsplash.com/photo-1528605248644-14dd04022da1?auto=format&fit=crop&w=720&q=75"
     ],
     likes: 1420,
     shares: 610,
@@ -666,11 +666,11 @@ export const SEED_IDEAS = [
     category: "Home-Based",
     categoryColor: "orange",
     trustBadges: ["Recurring Orders", "Zero Tech Needed", "High Word-of-Mouth"],
-    heroImage: "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=1200&q=80",
+    heroImage: "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=720&q=75",
     carouselImages: [
-      "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=1200&q=80",
-      "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=1200&q=80",
-      "https://images.unsplash.com/photo-1498837167922-ddd27525d352?auto=format&fit=crop&w=1200&q=80"
+      "https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&w=720&q=75",
+      "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=720&q=75",
+      "https://images.unsplash.com/photo-1498837167922-ddd27525d352?auto=format&fit=crop&w=720&q=75"
     ],
     likes: 1210,
     shares: 340,
@@ -774,11 +774,11 @@ export const SEED_IDEAS = [
     category: "E-Commerce",
     categoryColor: "teal",
     trustBadges: ["High Margin Flips", "Zero Tech", "Campus Monopoly"],
-    heroImage: "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?auto=format&fit=crop&w=1200&q=80",
+    heroImage: "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?auto=format&fit=crop&w=720&q=75",
     carouselImages: [
-      "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?auto=format&fit=crop&w=1200&q=80",
-      "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=1200&q=80",
-      "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=1200&q=80"
+      "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?auto=format&fit=crop&w=720&q=75",
+      "https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?auto=format&fit=crop&w=720&q=75",
+      "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=720&q=75"
     ],
     likes: 1350,
     shares: 410,
@@ -882,10 +882,10 @@ export const SEED_IDEAS = [
     category: "Digital Business",
     categoryColor: "emerald",
     trustBadges: ["High Close Rate", "Immediate Need", "Zero Tech"],
-    heroImage: "https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&w=1200&q=80",
+    heroImage: "https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&w=720&q=75",
     carouselImages: [
-      "https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&w=1200&q=80",
-      "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1200&q=80"
+      "https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&w=720&q=75",
+      "https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=720&q=75"
     ],
     likes: 1580,
     shares: 490,

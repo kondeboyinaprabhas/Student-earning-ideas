@@ -5,6 +5,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Search, X, ArrowLeft, TrendingUp, History, Sparkles, CheckCircle2, DollarSign, Clock, Award } from 'lucide-react';
 import { FILTER_CHIPS } from '../lib/seedData';
 import { trackEvent } from '../lib/analytics';
+import { getOptimizedImageUrl } from '@/lib/imageOptimizer';
 
 const SEARCH_HISTORY_KEY = 'sei_recent_searches_v1';
 
@@ -285,7 +286,7 @@ export default function SearchModal({ isOpen, onClose, ideas = [], onSelectIdea 
               {/* 16:9 Responsive Hero Image (Matching Mobile Feed Card) */}
               <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-800 mb-3.5">
                 <img
-                  src={item.heroImage}
+                  src={getOptimizedImageUrl(item.heroImage, { width: 600, quality: 75 })}
                   alt={item.title}
                   className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
                   loading="lazy"

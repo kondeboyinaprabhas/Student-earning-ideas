@@ -61,6 +61,8 @@ export default function PwaInstallPrompt({
           <img
             src="/icons/icon-192.png"
             alt="EarnIdeas"
+            width={44}
+            height={44}
             className="h-11 w-11 shrink-0 rounded-xl object-cover"
           />
 

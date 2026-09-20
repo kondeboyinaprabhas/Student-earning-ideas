@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { auth, provider, ADMIN_EMAILS } from '@/lib/firebase';
+import { auth, provider, ADMIN_EMAILS } from '@/lib/firebaseAuth';
 
 // If Firebase auth is unavailable (e.g., missing env vars), prevent auth actions
 const firebaseReady = !!auth && !!provider;

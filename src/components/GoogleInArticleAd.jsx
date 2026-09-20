@@ -53,7 +53,7 @@ export default function GoogleInArticleAd({
   if (adFailed) return null;
 
   return (
-    <div className={`w-full my-6 sm:my-8 transition-all overflow-hidden ${className}`}>
+    <div className={`w-full min-h-[90px] my-6 sm:my-8 transition-all overflow-hidden ${className}`}>
       {/* Real Responsive Google AdSense In-Article Ad Slot */}
       <ins
         ref={adRef}

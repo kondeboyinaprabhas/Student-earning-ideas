@@ -85,6 +85,8 @@ export async function getPublishedIdeas() {
       const cache = {};
       ideas.forEach(i => { if (typeof i.likes === 'number') cache[i.id] = i.likes; });
       safeSet(LIKES_COUNT_CACHE_KEY, cache);
+      // Cache published ideas locally for fast reload
+      safeSet(STORAGE_KEYS.PUBLISHED, ideas);
       return ideas;
     }
 

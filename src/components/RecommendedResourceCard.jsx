@@ -2,6 +2,8 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
+import { getOptimizedImageUrl } from '@/lib/imageOptimizer';
 import { 
   Sparkles, 
   ExternalLink, 
@@ -78,11 +80,13 @@ export default function RecommendedResourceCard({ resource, index = 0 }) {
         {/* Hero / Carousel Image Media */}
         {images.length > 0 && (
           <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-slate-950 mb-3.5 group shadow-inner border border-slate-200/60 dark:border-slate-800">
-            <img
-              src={images[activeImageIndex]}
+            <Image
+              src={getOptimizedImageUrl(images[activeImageIndex], { width: 720, quality: 75 })}
               alt={resource.headline || resource.title || 'Resource visual'}
-              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+              fill
               loading="lazy"
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 580px, 600px"
+              className="object-cover transition-transform duration-500 group-hover:scale-105"
             />
 
             {/* Multiple images indicator / navigation */}

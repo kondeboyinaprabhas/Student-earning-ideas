@@ -11,17 +11,17 @@ export default function AdUnit({ type = "in-article", index = 0, className = "" 
 
   if (type === "header-banner") {
     return (
-      <div className={`w-full bg-gradient-to-r from-sky-50 via-slate-50 to-indigo-50 border border-slate-200/80 rounded-2xl p-3 my-2 shadow-2xs relative overflow-hidden ${className}`}>
+      <div className={`w-full min-h-[58px] bg-gradient-to-r from-sky-50 via-slate-50 to-indigo-50 border border-slate-200/80 rounded-2xl p-3 my-2 shadow-2xs relative overflow-hidden ${className}`}>
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <span className="bg-slate-200/80 text-slate-700 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider">
+            <span className="bg-slate-200/80 text-slate-800 text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider">
               Ad
             </span>
             <div>
               <h5 className="text-xs font-bold text-slate-900 leading-tight">
                 Grow Your Business with Google AdSense
               </h5>
-              <p className="text-[10px] text-slate-500">Monetize your student side hustle</p>
+              <p className="text-[10px] text-slate-600">Monetize your student side hustle</p>
             </div>
           </div>
 
@@ -42,16 +42,16 @@ export default function AdUnit({ type = "in-article", index = 0, className = "" 
 
   if (type === "in-feed") {
     return (
-      <div className={`w-full bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm relative my-4 ${className}`}>
+      <div className={`w-full min-h-[110px] bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm relative my-4 ${className}`}>
         <div className="flex items-center justify-between mb-2.5">
-          <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-            <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">Sponsored</span>
+          <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+            <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-1.5 py-0.5 rounded">Sponsored</span>
             <span>•</span>
             <span>Google AdSense</span>
           </div>
           <button
             onClick={() => setCollapsed(true)}
-            className="text-slate-400 hover:text-slate-600 text-xs p-1"
+            className="text-slate-500 hover:text-slate-700 text-xs p-1"
             title="Hide ad"
             aria-label="Hide advertisement"
           >
@@ -86,12 +86,12 @@ export default function AdUnit({ type = "in-article", index = 0, className = "" 
 
   // Default: In-Article Ad unit
   return (
-    <div className={`w-full bg-slate-50/80 border border-dashed border-slate-300 rounded-2xl p-3.5 my-4 relative ${className}`}>
+    <div className={`w-full min-h-[88px] bg-slate-50/80 border border-dashed border-slate-300 rounded-2xl p-3.5 my-4 relative ${className}`}>
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] uppercase font-bold text-slate-400 bg-white border border-slate-200 px-1.5 py-0.5 rounded">
+        <span className="text-[10px] uppercase font-bold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-1.5 py-0.5 rounded">
           Ad
         </span>
-        <div className="flex items-center gap-1 text-[10px] text-slate-400">
+        <div className="flex items-center gap-1 text-[10px] text-slate-600 dark:text-slate-400">
           <Info className="w-3 h-3" />
           <span>Ads by Google</span>
         </div>

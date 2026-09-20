@@ -3,13 +3,11 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import Header from '@/components/Header';
 import IdeaCard from '@/components/IdeaCard';
 import RecommendedResourceCard from '@/components/RecommendedResourceCard';
 import AdUnit from '@/components/AdUnit';
-import SearchModal from '@/components/SearchModal';
-import ScrollGuidance from '@/components/ScrollGuidance';
-import CookieConsent from '@/components/CookieConsent';
 import Toast from '@/components/Toast';
 import Footer from '@/components/Footer';
 import { 
@@ -17,13 +15,19 @@ import {
   markAsViewed, getMaintenanceConfig 
 } from '@/lib/ideasStore';
 import { fetchRecommendedResources, getGlobalFrequency } from '@/lib/firestoreStore';
+import { SEED_IDEAS } from '@/lib/seedData';
 import { trackEvent } from '@/lib/analytics';
 import { X, Sparkles } from 'lucide-react';
-import PwaInstallPrompt from '@/components/PwaInstallPrompt';
 import PremiumRefreshOverlay from '@/components/PremiumRefreshOverlay';
 import { usePwaInstall } from '@/hooks/usePwaInstall';
-import NotificationPrompt from '@/components/NotificationPrompt';
 import { getPushStatus, subscribeUserToPush } from '@/lib/pushSubscription';
+
+// Dynamically import non-critical modals and prompts to reduce initial JS payload
+const SearchModal = dynamic(() => import('@/components/SearchModal'), { ssr: false });
+const ScrollGuidance = dynamic(() => import('@/components/ScrollGuidance'), { ssr: false });
+const CookieConsent = dynamic(() => import('@/components/CookieConsent'), { ssr: false });
+const PwaInstallPrompt = dynamic(() => import('@/components/PwaInstallPrompt'), { ssr: false });
+const NotificationPrompt = dynamic(() => import('@/components/NotificationPrompt'), { ssr: false });
 
 export default function HomePage() {
   const router = useRouter();
@@ -35,18 +39,13 @@ export default function HomePage() {
     handleInstall: handlePwaInstall,
     handleDismiss: handlePwaDismiss,
   } = usePwaInstall();
-  const [rawIdeas, setRawIdeas] = useState([]);
+  const [rawIdeas, setRawIdeas] = useState(SEED_IDEAS);
   const [isRefreshing, setIsRefreshing] = useState(true);
   const [isFeedRevealed, setIsFeedRevealed] = useState(false);
   const [savedIds, setSavedIds] = useState([]);
   const [recommendedResources, setRecommendedResources] = useState([]);
   const [globalFrequency, setGlobalFrequency] = useState(7);
- 
-const ideas = useMemo(() => {
-  const shuffled = [...rawIdeas];
-  shuffled.sort(() => Math.random() - 0.5);
-  return shuffled;
-}, [rawIdeas]);
+  const [isClient, setIsClient] = useState(false);
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
@@ -89,6 +88,7 @@ const ideas = useMemo(() => {
 
 
   useEffect(() => {
+    setIsClient(true);
     setSavedIds(getSavedIds());
     setMaintenance(getMaintenanceConfig());
 
@@ -103,23 +103,27 @@ const ideas = useMemo(() => {
         getGlobalFrequency(),
       ]);
 
-      try {
-        const [[ideas, resources, freq]] = await Promise.all([
-          dataPromise,
-          minDurationPromise,
-        ]);
-        setRawIdeas(Array.isArray(ideas) ? ideas : []);
+      // Apply ideas as soon as Firestore delivers them to start hero image download immediately
+      dataPromise.then(([ideas, resources, freq]) => {
+        if (Array.isArray(ideas) && ideas.length > 0) {
+          setRawIdeas(ideas);
+        }
         if (Array.isArray(resources)) {
-          // Use only active Recommended Resources
           const activeOnly = resources.filter((r) => r.active !== false);
           setRecommendedResources(activeOnly);
         }
         if (typeof freq === 'number' && freq > 0) {
           setGlobalFrequency(freq);
         }
+      }).catch((err) => {
+        console.error('Failed to load ideas or recommended resources:', err);
+      });
+
+      try {
+        await Promise.all([dataPromise, minDurationPromise]);
         setIsFeedRevealed(true);
       } catch (err) {
-        console.error('Failed to load ideas or recommended resources:', err);
+        console.error('Overlay completion error:', err);
       } finally {
         setIsRefreshing(false);
       }
@@ -130,16 +134,20 @@ const ideas = useMemo(() => {
 
   // Organize feed: Unseen ideas first!
   const sortedFeedIdeas = useMemo(() => {
-  if (!rawIdeas.length) return [];
+    if (!rawIdeas.length) return [];
 
-  const viewedIds = new Set(getViewedIds());
-  const unseen = rawIdeas.filter(i => !viewedIds.has(i.id));
-  const seen = rawIdeas.filter(i => viewedIds.has(i.id));
+    const viewedIds = new Set(getViewedIds());
+    const unseen = rawIdeas.filter(i => !viewedIds.has(i.id));
+    const seen = rawIdeas.filter(i => viewedIds.has(i.id));
 
-  const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5);
+    // Keep deterministic order on SSR and initial hydration to prevent mismatch
+    if (!isClient) {
+      return [...unseen, ...seen];
+    }
 
-  return [...shuffle(unseen), ...shuffle(seen)];
-}, [rawIdeas]);
+    const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5);
+    return [...shuffle(unseen), ...shuffle(seen)];
+  }, [rawIdeas, isClient]);
 
   // Interleave active Recommended Resources into the Ideas feed after every N ideas
 const feedItems = useMemo(() => {
@@ -329,7 +337,7 @@ const feedItems = useMemo(() => {
       <Toast message={toastMessage} />
 
       {/* Top AdSense Header Banner (Matches Reference Image) */}
-      <div className="max-w-xl mx-auto w-full px-3 sm:px-4 pt-1">
+      <div className="max-w-xl mx-auto w-full px-3 sm:px-4 pt-1 min-h-[66px]">
         <AdUnit type="header-banner" />
       </div>
 
@@ -355,7 +363,7 @@ const feedItems = useMemo(() => {
       `}</style>
 
       {/* Native Full-Screen CSS Snap-Scroll Feed Container */}
-      <main className={`flex-1 overflow-y-auto snap-y snap-mandatory ${isFeedRevealed ? 'feed-reveal-active' : ''}`}>
+      <main className={`flex-1 overflow-y-auto snap-y snap-mandatory min-h-screen ${isFeedRevealed ? 'feed-reveal-active' : ''}`}>
         {/* Notification Opt‑In Prompt */}
         {showNotificationPrompt && (
           <NotificationPrompt isVisible={showNotificationPrompt} onClose={handleNotificationClose} />

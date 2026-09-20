@@ -3,6 +3,8 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
+import { getOptimizedImageUrl } from '@/lib/imageOptimizer';
 import { 
   ChevronDown, ChevronUp, ChevronLeft, ChevronRight, 
   Lightbulb, ArrowRight, Sparkles, ShieldAlert 
@@ -380,20 +382,29 @@ export default function IdeaCard({
             }}
             onTransitionEnd={handleTransitionEnd}
           >
-            {slidesArray.map((img, i) => (
-              <div
-                key={i}
-                style={{ width: `${100 / totalSlides}%`, flexShrink: 0, height: '100%' }}
-              >
-                <img
-                  src={img}
-                  alt={`${idea.title} showcase photo ${(i % carouselImages.length) + 1}`}
-                  className="w-full h-full object-cover select-none pointer-events-none"
-                  loading="lazy"
-                  draggable={false}
-                />
-              </div>
-            ))}
+            {slidesArray.map((img, i) => {
+              const isLcp = index === 0 && i === 0;
+              const optimizedUrl = getOptimizedImageUrl(img, { width: 720, quality: 75 });
+
+              return (
+                <div
+                  key={i}
+                  className="relative h-full"
+                  style={{ width: `${100 / totalSlides}%`, flexShrink: 0 }}
+                >
+                  <Image
+                    src={optimizedUrl}
+                    alt={`${idea.title} showcase photo ${(i % carouselImages.length) + 1}`}
+                    fill
+                    priority={isLcp}
+                    loading={isLcp ? 'eager' : 'lazy'}
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 580px, 600px"
+                    className="object-cover select-none pointer-events-none"
+                    draggable={false}
+                  />
+                </div>
+              );
+            })}
           </div>
 
           {/* Carousel Controls — only shown when 2+ images exist */}
@@ -631,9 +642,12 @@ export default function IdeaCard({
                         className="flex items-center gap-2.5 p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 hover:border-teal-400 dark:hover:border-teal-400 text-left transition-all shadow-2xs group"
                       >
                         <img 
-                          src={rel.heroImage} 
+                          src={getOptimizedImageUrl(rel.heroImage, { width: 120, quality: 75 })} 
                           alt={rel.title}
                           className="w-12 h-12 rounded-lg object-cover shrink-0" 
+                          loading="lazy"
+                          width={48}
+                          height={48}
                         />
                         <div className="overflow-hidden">
                           <span className="text-[10px] font-semibold text-teal-700 dark:text-teal-400 block truncate">

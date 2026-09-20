@@ -91,7 +91,8 @@ import {
   unpublishIdea
 } from '@/lib/ideasStore';
 import { CATEGORIES } from '@/lib/seedData';
-import { db, auth, ADMIN_EMAILS } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
+import { auth, ADMIN_EMAILS } from '@/lib/firebaseAuth';
 import { 
   COLLECTIONS, logAdminAction
 } from '@/lib/firestoreStore';

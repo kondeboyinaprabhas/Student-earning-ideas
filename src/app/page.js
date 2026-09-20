@@ -40,8 +40,10 @@ export default function HomePage() {
     handleDismiss: handlePwaDismiss,
   } = usePwaInstall();
   const [rawIdeas, setRawIdeas] = useState(SEED_IDEAS);
-  const [isRefreshing, setIsRefreshing] = useState(true);
-  const [isFeedRevealed, setIsFeedRevealed] = useState(false);
+  // Start with the overlay hidden so the feed (and LCP image) is immediately visible.
+  // The overlay will briefly appear only while Firestore refreshes in the background.
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isFeedRevealed, setIsFeedRevealed] = useState(true);
   const [savedIds, setSavedIds] = useState([]);
   const [recommendedResources, setRecommendedResources] = useState([]);
   const [globalFrequency, setGlobalFrequency] = useState(7);
@@ -92,10 +94,15 @@ export default function HomePage() {
     setSavedIds(getSavedIds());
     setMaintenance(getMaintenanceConfig());
 
-    // Fetch ideas from Firestore + resources + global frequency concurrently with minimum 1.7s animation
+    // Fetch ideas from Firestore in the background.
+    // The feed is already visible with SEED_IDEAS so LCP is not blocked.
+    // The overlay appears briefly (min 1.7s) only while the Firestore refresh runs.
     const loadResourcesAndFrequency = async () => {
+      // Show overlay only after a short delay — give the LCP image time to paint first
+      const overlayDelay = new Promise((resolve) => setTimeout(resolve, 300));
+      await overlayDelay;
       setIsRefreshing(true);
-      // Run data loading and the 1.7s minimum animation duration simultaneously
+
       const minDurationPromise = new Promise((resolve) => setTimeout(resolve, 1700));
       const dataPromise = Promise.all([
         getPublishedIdeas(),
@@ -103,7 +110,7 @@ export default function HomePage() {
         getGlobalFrequency(),
       ]);
 
-      // Apply ideas as soon as Firestore delivers them to start hero image download immediately
+      // Apply ideas as soon as Firestore delivers them
       dataPromise.then(([ideas, resources, freq]) => {
         if (Array.isArray(ideas) && ideas.length > 0) {
           setRawIdeas(ideas);
@@ -121,7 +128,6 @@ export default function HomePage() {
 
       try {
         await Promise.all([dataPromise, minDurationPromise]);
-        setIsFeedRevealed(true);
       } catch (err) {
         console.error('Overlay completion error:', err);
       } finally {

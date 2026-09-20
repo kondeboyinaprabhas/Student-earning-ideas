@@ -68,6 +68,13 @@ export default function RootLayout({ children }) {
         <link rel="dns-prefetch" href="https://images.unsplash.com" />
         <link rel="preconnect" href="https://firestore.googleapis.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://firestore.googleapis.com" />
+        {/* LCP image preload — browser discovers this before React hydrates */}
+        <link
+          rel="preload"
+          as="image"
+          href="https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=720&q=75"
+          fetchPriority="high"
+        />
         {/* Instant dark mode initialization to prevent FOUC */}
         <script
           dangerouslySetInnerHTML={{

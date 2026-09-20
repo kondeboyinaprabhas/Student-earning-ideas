@@ -743,7 +743,7 @@ export default function AdminPage() {
                             type="text"
                             value={formData.title}
                             onChange={e => setFormData({ ...formData, title: e.target.value })}
-                            placeholder="e.g. Start a Print-on-Demand Business with Zero Investment"
+                            placeholder="e.g. Festival Camera Rental Portrait Service"
                             className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-teal-500"
                           />
                         </div>
@@ -1060,7 +1060,7 @@ export default function AdminPage() {
                             type="text"
                             value={formData.seoTitle}
                             onChange={e => setFormData({ ...formData, seoTitle: e.target.value })}
-                            placeholder="e.g. Start a Print-on-Demand Business | Student Earning Ideas"
+                            placeholder="e.g. Festival Camera Rental Portrait Service | Student Earning Ideas"
                             className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-teal-500"
                           />
                         </div>

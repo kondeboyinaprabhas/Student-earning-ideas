@@ -150,7 +150,7 @@ export default function HomePage() {
   }, []);
 
   // Organize feed: Unseen ideas first, shuffled for discovery.
-  // The hero card (SEED_IDEAS[0], Print-on-Demand) is permanently pinned at position 0:
+  // The hero card (SEED_IDEAS[0], Festival Camera Rental Portrait Service) is permanently pinned at position 0:
   //  • The LCP element is ALWAYS SEED_IDEAS[0]'s hero image across SSR, hydration, and Firestore background sync.
   //  • The <link rel="preload"> in layout.js matches the LCP element on every single page load.
   //  • Firestore background updates enrich the hero card with fresh data without swapping it out.

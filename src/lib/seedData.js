@@ -5,7 +5,7 @@ export const SEED_IDEAS = [
   {
     id: "idea-print-on-demand",
     slug: "print-on-demand-zero-investment",
-    title: "Start a Print-on-Demand Business with Zero Investment",
+    title: "Festival Camera Rental Portrait Service",
     subtitle: "Design t-shirts, mugs, posters and more. Sell them online without holding any physical stock.",
     category: "Online Business",
     categoryColor: "emerald",

@@ -110,9 +110,10 @@ export default function AdUnit({ type = "in-article", index = 0, className = "" 
           href="https://grow.google"
           target="_blank"
           rel="noopener noreferrer"
+          aria-label="Learn more about Tech Skills and AI Certification by Google"
           className="bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-semibold px-3 py-1.5 rounded-lg shrink-0 flex items-center gap-1 transition-colors"
         >
-          <span>Visit</span>
+          <span>Learn More</span>
           <ExternalLink className="w-3 h-3" />
         </a>
       </div>

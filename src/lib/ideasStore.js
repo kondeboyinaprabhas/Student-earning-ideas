@@ -1,9 +1,8 @@
 // ideasStore.js - Production State & Local/Firestore Synchronizer
 
 import { SEED_IDEAS } from './seedData.js';
-import { db } from './firebase';
-import { collection, doc, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
-import { COLLECTIONS } from './firestoreStore';
+
+const BLUEPRINTS_COLLECTION = 'blueprints';
 
 const STORAGE_KEYS = {
   PUBLISHED: 'sei_published_ideas_v1',
@@ -71,10 +70,15 @@ function setLikesCountCache(ideaId, count) {
   safeSet(LIKES_COUNT_CACHE_KEY, cache);
 }
 
-// Published ideas manager
+// Published ideas manager — dynamically imports Firebase so critical bundle stays light
 export async function getPublishedIdeas() {
   try {
-    const snap = await getDocs(collection(db, COLLECTIONS.BLUEPRINTS));
+    const { db } = await import('./firebase');
+    if (!db) {
+      return safeGet(STORAGE_KEYS.PUBLISHED, SEED_IDEAS);
+    }
+    const { collection, doc, getDocs, setDoc } = await import('firebase/firestore');
+    const snap = await getDocs(collection(db, BLUEPRINTS_COLLECTION));
 
     if (!snap.empty) {
       const ideas = snap.docs.map(d => ({
@@ -95,7 +99,7 @@ export async function getPublishedIdeas() {
     if (stored?.length) {
       for (const idea of stored) {
         await setDoc(
-          doc(db, COLLECTIONS.BLUEPRINTS, idea.id),
+          doc(db, BLUEPRINTS_COLLECTION, idea.id),
           idea
         );
       }
@@ -108,7 +112,7 @@ export async function getPublishedIdeas() {
 
     return SEED_IDEAS;
   } catch (e) {
-    console.warn(e);
+    console.warn('[ideasStore] getPublishedIdeas fallback:', e);
     return safeGet(STORAGE_KEYS.PUBLISHED, SEED_IDEAS);
   }
 }
@@ -124,8 +128,10 @@ export async function savePublishedIdea(idea) {
 
   recordVersionHistory(idea.id, finalIdea);
 
+  const { db } = await import('./firebase');
+  const { doc, setDoc } = await import('firebase/firestore');
   await setDoc(
-    doc(db, COLLECTIONS.BLUEPRINTS, finalIdea.id),
+    doc(db, BLUEPRINTS_COLLECTION, finalIdea.id),
     finalIdea
   );
 
@@ -135,7 +141,9 @@ export async function savePublishedIdea(idea) {
 }
 
 export async function deletePublishedIdea(id) {
-  await deleteDoc(doc(db, COLLECTIONS.BLUEPRINTS, id));
+  const { db } = await import('./firebase');
+  const { doc, deleteDoc } = await import('firebase/firestore');
+  await deleteDoc(doc(db, BLUEPRINTS_COLLECTION, id));
 }
 
 export async function unpublishIdea(id) {

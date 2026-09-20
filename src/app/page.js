@@ -14,13 +14,10 @@ import {
   getPublishedIdeas, getSavedIds, getViewedIds, 
   markAsViewed, getMaintenanceConfig 
 } from '@/lib/ideasStore';
-import { fetchRecommendedResources, getGlobalFrequency } from '@/lib/firestoreStore';
 import { SEED_IDEAS } from '@/lib/seedData';
 import { trackEvent } from '@/lib/analytics';
 import { X, Sparkles } from 'lucide-react';
-import PremiumRefreshOverlay from '@/components/PremiumRefreshOverlay';
 import { usePwaInstall } from '@/hooks/usePwaInstall';
-import { getPushStatus, subscribeUserToPush } from '@/lib/pushSubscription';
 
 // Dynamically import non-critical modals and prompts to reduce initial JS payload
 const SearchModal = dynamic(() => import('@/components/SearchModal'), { ssr: false });
@@ -28,6 +25,9 @@ const ScrollGuidance = dynamic(() => import('@/components/ScrollGuidance'), { ss
 const CookieConsent = dynamic(() => import('@/components/CookieConsent'), { ssr: false });
 const PwaInstallPrompt = dynamic(() => import('@/components/PwaInstallPrompt'), { ssr: false });
 const NotificationPrompt = dynamic(() => import('@/components/NotificationPrompt'), { ssr: false });
+const PremiumRefreshOverlay = dynamic(() => import('@/components/PremiumRefreshOverlay'), { ssr: false });
+
+const INITIAL_FEED_LIMIT = 4;
 
 export default function HomePage() {
   const router = useRouter();
@@ -40,6 +40,8 @@ export default function HomePage() {
     handleDismiss: handlePwaDismiss,
   } = usePwaInstall();
   const [rawIdeas, setRawIdeas] = useState(SEED_IDEAS);
+  const [visibleCount, setVisibleCount] = useState(INITIAL_FEED_LIMIT);
+  const sentinelRef = useRef(null);
   // Start with the overlay hidden so the feed (and LCP image) is immediately visible.
   // The overlay will briefly appear only while Firestore refreshes in the background.
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -71,7 +73,7 @@ export default function HomePage() {
     localStorage.setItem('notification_prompt_dismissed', 'true');
   };
 
-    // Online/Offline detection using navigator.onLine only
+  // Online/Offline detection using navigator.onLine only
   const [isOnline, setIsOnline] = useState(() => {
     if (typeof navigator === 'undefined') return true;
     return navigator.onLine;
@@ -87,26 +89,18 @@ export default function HomePage() {
     };
   }, []);
 
-
-
   useEffect(() => {
     setIsClient(true);
     setSavedIds(getSavedIds());
     setMaintenance(getMaintenanceConfig());
 
-    // Load data silently in the background.
-    //
-    // CRITICAL: We intentionally do NOT show the overlay on initial page load.
-    // The previous implementation called setIsRefreshing(true) which triggered the
-    // full-screen overlay (z-[9999]) for the entire Firestore round-trip time (up
-    // to 20s on throttled mobile). Even though the LCP image had loaded, it was
-    // invisible because the overlay was on top of it — PageSpeed measures visibility,
-    // not download completion. Removing setIsRefreshing() here cuts LCP from ~20s to
-    // the actual image load time (2–4s).
-    //
-    // SEED_IDEAS render immediately. Firestore updates the feed silently when ready.
+    // Load data silently in the background when the browser is idle.
+    // SEED_IDEAS render immediately for instant FCP and LCP.
+    // Firestore updates the feed in the background without blocking the critical path.
     const loadResourcesAndFrequency = async () => {
       try {
+        const { getPublishedIdeas } = await import('@/lib/ideasStore');
+        const { fetchRecommendedResources, getGlobalFrequency } = await import('@/lib/firestoreStore');
         const [ideas, resources, freq] = await Promise.all([
           getPublishedIdeas(),
           fetchRecommendedResources(),
@@ -127,7 +121,32 @@ export default function HomePage() {
       }
     };
 
-    loadResourcesAndFrequency();
+    // Schedule background Firestore sync strictly after window load + idle
+    // to guarantee zero competition with the LCP image or initial React rendering.
+    let scheduled = false;
+    const scheduleBackgroundSync = () => {
+      if (scheduled) return;
+      scheduled = true;
+
+      if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+        window.requestIdleCallback(() => {
+          loadResourcesAndFrequency();
+        }, { timeout: 4500 });
+      } else {
+        setTimeout(loadResourcesAndFrequency, 4000);
+      }
+    };
+
+    if (document.readyState === 'complete') {
+      scheduleBackgroundSync();
+    } else {
+      window.addEventListener('load', scheduleBackgroundSync, { once: true });
+      const safetyTimer = setTimeout(scheduleBackgroundSync, 5000);
+      return () => {
+        window.removeEventListener('load', scheduleBackgroundSync);
+        clearTimeout(safetyTimer);
+      };
+    }
   }, []);
 
   // Organize feed: Unseen ideas first, shuffled for discovery.
@@ -301,7 +320,45 @@ const feedItems = useMemo(() => {
     }, 20);
   };
 
+  // Scroll-based progressive feed expansion
+  useEffect(() => {
+    if (visibleCount >= feedItems.length) return;
+
+    const el = sentinelRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setVisibleCount((prev) => Math.min(prev + 4, feedItems.length));
+        }
+      },
+      { rootMargin: '800px' }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [visibleCount, feedItems.length]);
+
+  // Idle-time expansion: once LCP settles, quietly expand remaining items
+  useEffect(() => {
+    if (visibleCount < feedItems.length) {
+      if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+        const id = window.requestIdleCallback(() => {
+          setVisibleCount((prev) => Math.min(prev + 6, feedItems.length));
+        }, { timeout: 3500 });
+        return () => window.cancelIdleCallback(id);
+      } else {
+        const t = setTimeout(() => {
+          setVisibleCount((prev) => Math.min(prev + 6, feedItems.length));
+        }, 2000);
+        return () => clearTimeout(t);
+      }
+    }
+  }, [visibleCount, feedItems.length]);
+
   const handleSelectIdeaFromSearch = (idea) => {
+    setVisibleCount(feedItems.length); // Ensure target exists in DOM
     setIsSearchOpen(false);
     setTimeout(() => {
       const el = document.getElementById(`card-${idea.id}`);
@@ -379,45 +436,54 @@ const feedItems = useMemo(() => {
         {showNotificationPrompt && (
           <NotificationPrompt isVisible={showNotificationPrompt} onClose={handleNotificationClose} />
         )}
-        {feedItems.map((item, index) => {
+        {feedItems.slice(0, visibleCount).map((item, index) => {
           if (item.type === 'idea') {
             const idea = item.data;
 
             return (
-              <IdeaCard
-                key={idea.id}
-                idea={idea}
-                index={index}
-                allIdeas={sortedFeedIdeas}
-                onSaveChange={handleSaveChange}
-                onShowToast={showToast}
-                onNavigateToIdea={(slug) => {
-                  const target = sortedFeedIdeas.find(i => i.slug === slug);
+              <div key={idea.id} className={index > 0 ? "feed-card-lazy" : ""}>
+                <IdeaCard
+                  idea={idea}
+                  index={index}
+                  allIdeas={sortedFeedIdeas}
+                  onSaveChange={handleSaveChange}
+                  onShowToast={showToast}
+                  onNavigateToIdea={(slug) => {
+                    setVisibleCount(feedItems.length);
+                    const target = sortedFeedIdeas.find(i => i.slug === slug);
 
-                  if (target) {
-                    const el = document.getElementById(`card-${target.id}`);
-
-                    if (el) {
-                      el.scrollIntoView({ behavior: 'smooth' });
+                    if (target) {
+                      setTimeout(() => {
+                        const el = document.getElementById(`card-${target.id}`);
+                        if (el) {
+                          el.scrollIntoView({ behavior: 'smooth' });
+                        }
+                      }, 50);
                     }
-                  }
-                }}
-              />
+                  }}
+                />
+              </div>
             );
           }
 
           if (item.type === 'resource') {
             return (
-              <RecommendedResourceCard
-                key={item.key}
-                resource={item.data}
-                index={index}
-              />
+              <div key={item.key} className={index > 0 ? "feed-card-lazy" : ""}>
+                <RecommendedResourceCard
+                  resource={item.data}
+                  index={index}
+                />
+              </div>
             );
           }
 
           return null;
         })}
+
+        {/* Scroll Sentinel for progressive feed loading */}
+        {visibleCount < feedItems.length && (
+          <div ref={sentinelRef} className="h-6 w-full pointer-events-none" aria-hidden="true" />
+        )}
 
         {/* Feed Bottom Note */}
         <div className="py-12 px-4 text-center text-xs text-slate-500 space-y-2">
@@ -434,13 +500,15 @@ const feedItems = useMemo(() => {
       {/* One-Time Animated Scroll Guidance Banner */}
       <ScrollGuidance />
 
-      {/* Search Drawer & 7-Chip Filter Screen */}
-      <SearchModal
-        isOpen={isSearchOpen}
-        onClose={handleCloseSearch}
-        ideas={sortedFeedIdeas}
-        onSelectIdea={handleSelectIdeaFromSearch}
-      />
+      {/* Search Drawer & 7-Chip Filter Screen — dynamically mounted on demand */}
+      {isSearchOpen && (
+        <SearchModal
+          isOpen={isSearchOpen}
+          onClose={handleCloseSearch}
+          ideas={sortedFeedIdeas}
+          onSelectIdea={handleSelectIdeaFromSearch}
+        />
+      )}
 
       {/* Google Vignette Ad Simulation (Every 5–6 Ideas) */}
       {vignetteAdVisible && (
@@ -483,17 +551,21 @@ const feedItems = useMemo(() => {
         </div>
       )}
 
-      {/* PWA Install Prompt Banner (Strict Idea #2 & Idea #10 Triggers) */}
-      <PwaInstallPrompt
-        isVisible={isPwaPromptVisible}
-        promptIdea={pwaPromptIdea}
-        isIos={isPwaIos}
-        onInstall={handlePwaInstall}
-        onDismiss={handlePwaDismiss}
-      />
+      {/* PWA Install Prompt Banner — conditionally mounted on demand */}
+      {isPwaPromptVisible && (
+        <PwaInstallPrompt
+          isVisible={isPwaPromptVisible}
+          promptIdea={pwaPromptIdea}
+          isIos={isPwaIos}
+          onInstall={handlePwaInstall}
+          onDismiss={handlePwaDismiss}
+        />
+      )}
 
       {/* Premium Refresh Overlay */}
-      <PremiumRefreshOverlay visible={isRefreshing} />
+      {isRefreshing && (
+        <PremiumRefreshOverlay visible={isRefreshing} />
+      )}
 
       {/* GDPR / ePrivacy Cookie Consent */}
       <CookieConsent />

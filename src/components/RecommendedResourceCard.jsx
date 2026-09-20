@@ -193,7 +193,7 @@ export default function RecommendedResourceCard({ resource, index = 0 }) {
                 </div>
 
                 <span className="shrink-0 bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-sm transition-all group-hover:scale-105">
-                  Open
+                  View Resource
                 </span>
               </a>
             ))}

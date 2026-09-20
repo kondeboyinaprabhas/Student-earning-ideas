@@ -57,3 +57,9 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Performance: Off-screen feed card visibility optimization */
+.feed-card-lazy {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 680px;
+}

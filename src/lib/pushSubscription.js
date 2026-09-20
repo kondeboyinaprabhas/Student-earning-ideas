@@ -1,9 +1,9 @@
 // src/lib/pushSubscription.js - Client-side Web Push Subscription & Token Manager
 'use client';
 
-import { doc, setDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from './firebase';
-import { COLLECTIONS } from './firestoreStore';
+const COLLECTIONS = {
+  PUSH_SUBSCRIPTIONS: 'pushSubscriptions',
+};
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || 'BGSNkX5qMqEFiHER_vSCjmdKNYmoboaRl4vCbMZEkFvuiGsqGP4AWcaRvP0cW2q0Ag2902A-q-0hK2JImitRpvE';
 
@@ -124,23 +124,29 @@ export async function subscribeUserToPush() {
     }
 
     // 4. Save to Firestore `pushSubscriptions` collection with deduplication
-    if (db) {
-      const docId = getSubscriptionDocId(subJson.endpoint);
-      const subRef = doc(db, COLLECTIONS.PUSH_SUBSCRIPTIONS || 'pushSubscriptions', docId);
+    try {
+      const { db } = await import('./firebase');
+      if (db) {
+        const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
+        const docId = getSubscriptionDocId(subJson.endpoint);
+        const subRef = doc(db, COLLECTIONS.PUSH_SUBSCRIPTIONS || 'pushSubscriptions', docId);
 
-      await setDoc(subRef, {
-        endpoint: subJson.endpoint,
-        keys: {
-          p256dh: subJson.keys.p256dh,
-          auth: subJson.keys.auth,
-        },
-        userAgent: navigator.userAgent || 'Unknown',
-        platform: navigator.platform || 'Unknown',
-        language: navigator.language || 'en',
-        active: true,
-        updatedAt: serverTimestamp(),
-        createdAt: serverTimestamp(),
-      }, { merge: true });
+        await setDoc(subRef, {
+          endpoint: subJson.endpoint,
+          keys: {
+            p256dh: subJson.keys.p256dh,
+            auth: subJson.keys.auth,
+          },
+          userAgent: navigator.userAgent || 'Unknown',
+          platform: navigator.platform || 'Unknown',
+          language: navigator.language || 'en',
+          active: true,
+          updatedAt: serverTimestamp(),
+          createdAt: serverTimestamp(),
+        }, { merge: true });
+      }
+    } catch (fsErr) {
+      console.warn('[Push] Firestore sync warning (local push still active):', fsErr);
     }
 
     return { success: true, subscription: subJson };
@@ -166,13 +172,21 @@ export async function unsubscribeUserFromPush() {
       const subJson = sub.toJSON();
       await sub.unsubscribe();
 
-      if (db && subJson.endpoint) {
-        const docId = getSubscriptionDocId(subJson.endpoint);
-        const subRef = doc(db, COLLECTIONS.PUSH_SUBSCRIPTIONS || 'pushSubscriptions', docId);
-        await updateDoc(subRef, {
-          active: false,
-          updatedAt: serverTimestamp(),
-        }).catch(() => {});
+      if (subJson.endpoint) {
+        try {
+          const { db } = await import('./firebase');
+          if (db) {
+            const { doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
+            const docId = getSubscriptionDocId(subJson.endpoint);
+            const subRef = doc(db, COLLECTIONS.PUSH_SUBSCRIPTIONS || 'pushSubscriptions', docId);
+            await updateDoc(subRef, {
+              active: false,
+              updatedAt: serverTimestamp(),
+            }).catch(() => {});
+          }
+        } catch (fsErr) {
+          console.warn('[Push] Firestore unsubscribe sync warning:', fsErr);
+        }
       }
     }
 

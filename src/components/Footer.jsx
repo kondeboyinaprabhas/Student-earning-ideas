@@ -15,6 +15,9 @@ export default function Footer() {
 
         {/* Public Compliance Links */}
         <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-slate-300 font-medium text-xs">
+          <Link href="/about" className="hover:text-teal-400 transition-colors">
+            About
+          </Link>
           <Link href="/privacy" className="hover:text-teal-400 transition-colors">
             Privacy Policy
           </Link>
@@ -25,7 +28,7 @@ export default function Footer() {
             Earnings Disclaimer
           </Link>
           <Link href="/contact" className="hover:text-teal-400 transition-colors">
-            Contact & Support
+            Contact &amp; Support
           </Link>
         </div>
 

@@ -41,7 +41,7 @@ export const metadata = {
   openGraph: {
     title: "Student Earning Ideas — 100+ Ways to Earn",
     description: "Step-by-step student business blueprints, micro-gigs, and tools to earn while in college.",
-    url: "https://studentearningideas.com",
+    url: "https://student-earning-ideas.vercel.app",
     siteName: "Student Earning Ideas",
     locale: "en_IN",
     type: "website",

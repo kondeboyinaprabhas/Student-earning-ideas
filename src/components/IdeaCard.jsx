@@ -398,6 +398,7 @@ export default function IdeaCard({
                     fill
                     priority={isLcp}
                     loading={isLcp ? 'eager' : 'lazy'}
+                    unoptimized={isLcp}
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 580px, 600px"
                     className="object-cover select-none pointer-events-none"
                     draggable={false}

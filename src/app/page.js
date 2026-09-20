@@ -94,24 +94,24 @@ export default function HomePage() {
     setSavedIds(getSavedIds());
     setMaintenance(getMaintenanceConfig());
 
-    // Fetch ideas from Firestore in the background.
-    // The feed is already visible with SEED_IDEAS so LCP is not blocked.
-    // The overlay appears briefly (min 1.7s) only while the Firestore refresh runs.
+    // Load data silently in the background.
+    //
+    // CRITICAL: We intentionally do NOT show the overlay on initial page load.
+    // The previous implementation called setIsRefreshing(true) which triggered the
+    // full-screen overlay (z-[9999]) for the entire Firestore round-trip time (up
+    // to 20s on throttled mobile). Even though the LCP image had loaded, it was
+    // invisible because the overlay was on top of it — PageSpeed measures visibility,
+    // not download completion. Removing setIsRefreshing() here cuts LCP from ~20s to
+    // the actual image load time (2–4s).
+    //
+    // SEED_IDEAS render immediately. Firestore updates the feed silently when ready.
     const loadResourcesAndFrequency = async () => {
-      // Show overlay only after a short delay — give the LCP image time to paint first
-      const overlayDelay = new Promise((resolve) => setTimeout(resolve, 300));
-      await overlayDelay;
-      setIsRefreshing(true);
-
-      const minDurationPromise = new Promise((resolve) => setTimeout(resolve, 1700));
-      const dataPromise = Promise.all([
-        getPublishedIdeas(),
-        fetchRecommendedResources(),
-        getGlobalFrequency(),
-      ]);
-
-      // Apply ideas as soon as Firestore delivers them
-      dataPromise.then(([ideas, resources, freq]) => {
+      try {
+        const [ideas, resources, freq] = await Promise.all([
+          getPublishedIdeas(),
+          fetchRecommendedResources(),
+          getGlobalFrequency(),
+        ]);
         if (Array.isArray(ideas) && ideas.length > 0) {
           setRawIdeas(ideas);
         }
@@ -122,37 +122,42 @@ export default function HomePage() {
         if (typeof freq === 'number' && freq > 0) {
           setGlobalFrequency(freq);
         }
-      }).catch((err) => {
-        console.error('Failed to load ideas or recommended resources:', err);
-      });
-
-      try {
-        await Promise.all([dataPromise, minDurationPromise]);
       } catch (err) {
-        console.error('Overlay completion error:', err);
-      } finally {
-        setIsRefreshing(false);
+        console.error('Failed to load ideas or recommended resources:', err);
       }
     };
 
     loadResourcesAndFrequency();
   }, []);
 
-  // Organize feed: Unseen ideas first!
+  // Organize feed: Unseen ideas first, shuffled for discovery.
+  // The hero card (SEED_IDEAS[0], Print-on-Demand) is permanently pinned at position 0:
+  //  • The LCP element is ALWAYS SEED_IDEAS[0]'s hero image across SSR, hydration, and Firestore background sync.
+  //  • The <link rel="preload"> in layout.js matches the LCP element on every single page load.
+  //  • Firestore background updates enrich the hero card with fresh data without swapping it out.
+  //  • Lighthouse never measures a late-loading Firestore card (e.g. Coding Classes) as LCP.
   const sortedFeedIdeas = useMemo(() => {
     if (!rawIdeas.length) return [];
 
-    const viewedIds = new Set(getViewedIds());
-    const unseen = rawIdeas.filter(i => !viewedIds.has(i.id));
-    const seen = rawIdeas.filter(i => viewedIds.has(i.id));
+    const HERO_ID = SEED_IDEAS[0]?.id || 'idea-print-on-demand';
+    const hero = rawIdeas.find(i => i.id === HERO_ID);
+    const otherIdeas = rawIdeas.filter(i => i.id !== HERO_ID);
 
-    // Keep deterministic order on SSR and initial hydration to prevent mismatch
+    const viewedIds = new Set(getViewedIds());
+    const unseen = otherIdeas.filter(i => !viewedIds.has(i.id));
+    const seen = otherIdeas.filter(i => viewedIds.has(i.id));
+
+    // Deterministic order on SSR and initial hydration to prevent React hydration mismatch
     if (!isClient) {
-      return [...unseen, ...seen];
+      return hero ? [hero, ...unseen, ...seen] : [...unseen, ...seen];
     }
 
     const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5);
-    return [...shuffle(unseen), ...shuffle(seen)];
+
+    // Keep hero at position 0; shuffle remaining unseen and seen ideas for discovery
+    return hero
+      ? [hero, ...shuffle(unseen), ...shuffle(seen)]
+      : [...shuffle(unseen), ...shuffle(seen)];
   }, [rawIdeas, isClient]);
 
   // Interleave active Recommended Resources into the Ideas feed after every N ideas

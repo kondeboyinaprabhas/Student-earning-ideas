@@ -64,7 +64,7 @@ export default function RootLayout({ children }) {
       data-scroll-behavior="smooth"
       className={`${jakarta.variable} ${inter.variable} h-full antialiased`}>
       <head>
-        <link rel="preconnect" href="https://images.unsplash.com" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://images.unsplash.com" />
         <link rel="dns-prefetch" href="https://images.unsplash.com" />
         <link rel="preconnect" href="https://firestore.googleapis.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://firestore.googleapis.com" />

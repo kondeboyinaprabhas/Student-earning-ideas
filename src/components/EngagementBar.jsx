@@ -112,7 +112,7 @@ export default function EngagementBar({ idea, onSaveChange, onShowToast }) {
         >
           <Heart className={`w-5 h-5 transition-transform ${isLiked ? 'fill-rose-600 text-rose-600 scale-110' : 'stroke-[1.8]'}`} />
           <span className="text-[11px] font-semibold">{formatCount(likeCount)}</span>
-          <span className="text-[9px] uppercase tracking-wider text-slate-600 dark:text-slate-400 font-medium">Like</span>
+          <span className="text-[9px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-medium">Like</span>
         </button>
 
         {/* Share Button */}
@@ -123,7 +123,7 @@ export default function EngagementBar({ idea, onSaveChange, onShowToast }) {
         >
           <Share2 className="w-5 h-5 stroke-[1.8]" />
           <span className="text-[11px] font-semibold">Share</span>
-          <span className="text-[9px] uppercase tracking-wider text-slate-600 dark:text-slate-400 font-medium">Send</span>
+          <span className="text-[9px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-medium">Send</span>
         </button>
 
         {/* Save Button */}
@@ -138,7 +138,7 @@ export default function EngagementBar({ idea, onSaveChange, onShowToast }) {
         >
           <Bookmark className={`w-5 h-5 transition-transform ${isSaved ? 'fill-teal-600 dark:fill-teal-400 text-teal-600 dark:text-teal-400 scale-110' : 'stroke-[1.8]'}`} />
           <span className="text-[11px] font-semibold">{isSaved ? "Saved" : "Save"}</span>
-          <span className="text-[9px] uppercase tracking-wider text-slate-600 dark:text-slate-400 font-medium">Bookmark</span>
+          <span className="text-[9px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-medium">Bookmark</span>
         </button>
 
         {/* Listen (TTS Audio) Button */}
@@ -161,7 +161,7 @@ export default function EngagementBar({ idea, onSaveChange, onShowToast }) {
             <Volume2 className="w-5 h-5 stroke-[1.8]" />
           )}
           <span className="text-[11px] font-semibold">{isPlayingAudio ? "Playing" : "Listen"}</span>
-          <span className="text-[9px] uppercase tracking-wider text-slate-600 dark:text-slate-400 font-medium">Audio</span>
+          <span className="text-[9px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-medium">Audio</span>
         </button>
       </div>
 

@@ -32,7 +32,7 @@ export default function Footer() {
           </Link>
         </div>
 
-        <div className="text-center text-[10px] text-slate-500 space-y-1">
+        <div className="text-center text-[10px] text-slate-400 space-y-1">
           <p>© {new Date().getFullYear()} Student Earning Ideas. All rights reserved.</p>
           <p>Not affiliated with university bodies or external brand trademarks. All earning figures are realistic estimates based on student reporting.</p>
         </div>

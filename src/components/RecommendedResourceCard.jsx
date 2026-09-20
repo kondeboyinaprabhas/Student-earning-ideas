@@ -80,14 +80,24 @@ export default function RecommendedResourceCard({ resource, index = 0 }) {
         {/* Hero / Carousel Image Media */}
         {images.length > 0 && (
           <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-slate-950 mb-3.5 group shadow-inner border border-slate-200/60 dark:border-slate-800">
-            <Image
-              src={getOptimizedImageUrl(images[activeImageIndex], { width: 720, quality: 75 })}
-              alt={resource.headline || resource.title || 'Resource visual'}
-              fill
-              loading="lazy"
-              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 580px, 600px"
-              className="object-cover transition-transform duration-500 group-hover:scale-105"
-            />
+            {images[activeImageIndex]?.startsWith('data:') ? (
+              <img
+                src={images[activeImageIndex]}
+                alt={resource.headline || resource.title || 'Resource visual'}
+                loading="lazy"
+                decoding="async"
+                className="object-cover transition-transform duration-500 group-hover:scale-105 absolute inset-0 w-full h-full"
+              />
+            ) : (
+              <Image
+                src={getOptimizedImageUrl(images[activeImageIndex], { width: 720, quality: 75 })}
+                alt={resource.headline || resource.title || 'Resource visual'}
+                fill
+                loading="lazy"
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 580px, 600px"
+                className="object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+            )}
 
             {/* Multiple images indicator / navigation */}
             {images.length > 1 && (
@@ -165,6 +175,7 @@ export default function RecommendedResourceCard({ resource, index = 0 }) {
                 href={link.url || '#'}
                 target="_blank"
                 rel="noopener noreferrer"
+                aria-label={`Open ${link.label || 'resource'}: ${link.description || 'External resource'}`}
                 className="group flex items-center justify-between p-3 bg-gradient-to-r from-teal-500/10 to-emerald-500/5 hover:from-teal-500/20 hover:to-emerald-500/15 border border-teal-500/30 rounded-2xl transition-all cursor-pointer shadow-sm hover:shadow active:scale-[0.99]"
               >
                 <div className="min-w-0 pr-2">

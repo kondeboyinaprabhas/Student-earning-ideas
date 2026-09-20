@@ -68,7 +68,9 @@ export default function RootLayout({ children }) {
         <link rel="dns-prefetch" href="https://images.unsplash.com" />
         <link rel="preconnect" href="https://firestore.googleapis.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://firestore.googleapis.com" />
-        {/* LCP image preload — browser discovers this before React hydrates */}
+        {/* LCP image preload — browser discovers this immediately on parse, before React hydrates.
+            The hero IdeaCard uses unoptimized={isLcp} so the img src is this exact URL.
+            This preload matches the rendered element byte-for-byte. */}
         <link
           rel="preload"
           as="image"

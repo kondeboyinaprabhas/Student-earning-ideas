@@ -25,7 +25,10 @@ export default function ScrollGuidance() {
   if (!visible) return null;
 
   return (
-    <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 animate-bounce pointer-events-auto">
+    <div 
+      className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 animate-bounce pointer-events-auto"
+      style={{ willChange: 'transform' }}
+    >
       <div 
         onClick={handleDismiss}
         className="flex items-center gap-2 bg-slate-900/95 text-white px-4 py-2.5 rounded-full shadow-xl border border-slate-700/80 backdrop-blur-md cursor-pointer select-none group"
@@ -39,8 +42,8 @@ export default function ScrollGuidance() {
             e.stopPropagation();
             handleDismiss();
           }}
-          className="ml-1 text-slate-400 hover:text-white p-0.5 rounded-full"
-          aria-label="Dismiss guide"
+          className="ml-1 text-slate-400 hover:text-white p-1.5 -mr-1 rounded-full flex items-center justify-center transition-colors cursor-pointer"
+          aria-label="Dismiss scroll guidance"
         >
           <X className="w-3.5 h-3.5" />
         </button>

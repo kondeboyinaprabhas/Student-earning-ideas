@@ -112,10 +112,10 @@ export default function NotificationBell() {
             </div>
             <button
               onClick={() => setIsOpen(false)}
-              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 rounded-md"
-              aria-label="Close"
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-2 -mr-1 -mt-1 rounded-lg transition-colors cursor-pointer"
+              aria-label="Close notification settings"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
 

@@ -384,7 +384,11 @@ export default function IdeaCard({
           >
             {slidesArray.map((img, i) => {
               const isLcp = index === 0 && i === 0;
-              const optimizedUrl = getOptimizedImageUrl(img, { width: 720, quality: 75 });
+              // data: URIs (admin-uploaded WebP/JPEG blobs) cannot be routed through
+              // the Next.js /_next/image optimizer — it returns 404 for non-URL inputs.
+              // Render them directly with a plain <img> instead.
+              const isDataUri = typeof img === 'string' && img.startsWith('data:');
+              const optimizedUrl = isDataUri ? img : getOptimizedImageUrl(img, { width: 720, quality: 75 });
 
               return (
                 <div
@@ -392,17 +396,29 @@ export default function IdeaCard({
                   className="relative h-full"
                   style={{ width: `${100 / totalSlides}%`, flexShrink: 0 }}
                 >
-                  <Image
-                    src={optimizedUrl}
-                    alt={`${idea.title} showcase photo ${(i % carouselImages.length) + 1}`}
-                    fill
-                    priority={isLcp}
-                    loading={isLcp ? 'eager' : 'lazy'}
-                    unoptimized={isLcp}
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 580px, 600px"
-                    className="object-cover select-none pointer-events-none"
-                    draggable={false}
-                  />
+                  {isDataUri ? (
+                    // Plain img for base64 data URIs — optimizer cannot handle these
+                    <img
+                      src={optimizedUrl}
+                      alt={`${idea.title} showcase photo ${(i % carouselImages.length) + 1}`}
+                      loading={isLcp ? 'eager' : 'lazy'}
+                      decoding="async"
+                      draggable={false}
+                      className="object-cover select-none pointer-events-none absolute inset-0 w-full h-full"
+                    />
+                  ) : (
+                    <Image
+                      src={optimizedUrl}
+                      alt={`${idea.title} showcase photo ${(i % carouselImages.length) + 1}`}
+                      fill
+                      priority={isLcp}
+                      loading={isLcp ? 'eager' : 'lazy'}
+                      unoptimized={isLcp}
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 580px, 600px"
+                      className="object-cover select-none pointer-events-none"
+                      draggable={false}
+                    />
+                  )}
                 </div>
               );
             })}
@@ -643,7 +659,7 @@ export default function IdeaCard({
                         className="flex items-center gap-2.5 p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 hover:border-teal-400 dark:hover:border-teal-400 text-left transition-all shadow-2xs group"
                       >
                         <img 
-                          src={getOptimizedImageUrl(rel.heroImage, { width: 120, quality: 75 })} 
+                          src={typeof rel.heroImage === 'string' && rel.heroImage.startsWith('data:') ? rel.heroImage : getOptimizedImageUrl(rel.heroImage, { width: 120, quality: 75 })} 
                           alt={rel.title}
                           className="w-12 h-12 rounded-lg object-cover shrink-0" 
                           loading="lazy"

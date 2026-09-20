@@ -2,7 +2,7 @@
 import { SEED_IDEAS } from '@/lib/seedData';
 
 export default async function sitemap() {
-  const baseUrl = 'https://studentearningideas.com';
+  const baseUrl = 'https://student-earning-ideas.vercel.app';
 
   const staticRoutes = [
     '',

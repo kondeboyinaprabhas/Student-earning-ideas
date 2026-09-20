@@ -8,6 +8,6 @@ export default function robots() {
         disallow: ['/admin', '/preview/']
       }
     ],
-    sitemap: 'https://studentearningideas.com/sitemap.xml'
+    sitemap: 'https://student-earning-ideas.vercel.app/sitemap.xml'
   };
 }

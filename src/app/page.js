@@ -20,6 +20,7 @@ import { fetchRecommendedResources, getGlobalFrequency } from '@/lib/firestoreSt
 import { trackEvent } from '@/lib/analytics';
 import { X, Sparkles } from 'lucide-react';
 import PwaInstallPrompt from '@/components/PwaInstallPrompt';
+import PremiumRefreshOverlay from '@/components/PremiumRefreshOverlay';
 import { usePwaInstall } from '@/hooks/usePwaInstall';
 import NotificationPrompt from '@/components/NotificationPrompt';
 import { getPushStatus, subscribeUserToPush } from '@/lib/pushSubscription';
@@ -35,9 +36,18 @@ export default function HomePage() {
     handleDismiss: handlePwaDismiss,
   } = usePwaInstall();
   const [rawIdeas, setRawIdeas] = useState([]);
+  const [isRefreshing, setIsRefreshing] = useState(true);
+  const [isFeedRevealed, setIsFeedRevealed] = useState(false);
   const [savedIds, setSavedIds] = useState([]);
   const [recommendedResources, setRecommendedResources] = useState([]);
   const [globalFrequency, setGlobalFrequency] = useState(7);
+ 
+const ideas = useMemo(() => {
+  const shuffled = [...rawIdeas];
+  shuffled.sort(() => Math.random() - 0.5);
+  return shuffled;
+}, [rawIdeas]);
+
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
   const [vignetteAdVisible, setVignetteAdVisible] = useState(false);
@@ -82,13 +92,21 @@ export default function HomePage() {
     setSavedIds(getSavedIds());
     setMaintenance(getMaintenanceConfig());
 
-    // Fetch ideas from Firestore + resources + global frequency together
+    // Fetch ideas from Firestore + resources + global frequency concurrently with minimum 1.7s animation
     const loadResourcesAndFrequency = async () => {
+      setIsRefreshing(true);
+      // Run data loading and the 1.7s minimum animation duration simultaneously
+      const minDurationPromise = new Promise((resolve) => setTimeout(resolve, 1700));
+      const dataPromise = Promise.all([
+        getPublishedIdeas(),
+        fetchRecommendedResources(),
+        getGlobalFrequency(),
+      ]);
+
       try {
-        const [ideas, resources, freq] = await Promise.all([
-          getPublishedIdeas(),
-          fetchRecommendedResources(),
-          getGlobalFrequency(),
+        const [[ideas, resources, freq]] = await Promise.all([
+          dataPromise,
+          minDurationPromise,
         ]);
         setRawIdeas(Array.isArray(ideas) ? ideas : []);
         if (Array.isArray(resources)) {
@@ -99,8 +117,11 @@ export default function HomePage() {
         if (typeof freq === 'number' && freq > 0) {
           setGlobalFrequency(freq);
         }
+        setIsFeedRevealed(true);
       } catch (err) {
         console.error('Failed to load ideas or recommended resources:', err);
+      } finally {
+        setIsRefreshing(false);
       }
     };
 
@@ -109,46 +130,55 @@ export default function HomePage() {
 
   // Organize feed: Unseen ideas first!
   const sortedFeedIdeas = useMemo(() => {
-    if (!rawIdeas.length) return [];
-    const viewedIds = new Set(getViewedIds());
+  if (!rawIdeas.length) return [];
 
-    const unseen = rawIdeas.filter(i => !viewedIds.has(i.id));
-    const seen = rawIdeas.filter(i => viewedIds.has(i.id));
+  const viewedIds = new Set(getViewedIds());
+  const unseen = rawIdeas.filter(i => !viewedIds.has(i.id));
+  const seen = rawIdeas.filter(i => viewedIds.has(i.id));
 
-    return [...unseen, ...seen];
-  }, [rawIdeas]);
+  const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5);
+
+  return [...shuffle(unseen), ...shuffle(seen)];
+}, [rawIdeas]);
 
   // Interleave active Recommended Resources into the Ideas feed after every N ideas
-  const feedItems = useMemo(() => {
-    if (!sortedFeedIdeas.length) return [];
-    if (!recommendedResources.length || !globalFrequency || globalFrequency < 1) {
-      return sortedFeedIdeas.map((idea) => ({ type: 'idea', data: idea, key: `idea-${idea.id}` }));
-    }
+const feedItems = useMemo(() => {
+  if (!sortedFeedIdeas.length) return [];
 
-    const items = [];
-    let resourceIdx = 0;
+  if (!recommendedResources.length || !globalFrequency || globalFrequency < 1) {
+    return sortedFeedIdeas.map((idea) => ({
+      type: 'idea',
+      data: idea,
+      key: `idea-${idea.id}`,
+    }));
+  }
 
-    for (let i = 0; i < sortedFeedIdeas.length; i++) {
+  const items = [];
+  let resourceIdx = 0;
+
+  for (let i = 0; i < sortedFeedIdeas.length; i++) {
+    items.push({
+      type: 'idea',
+      data: sortedFeedIdeas[i],
+      key: `idea-${sortedFeedIdeas[i].id}`,
+    });
+
+    if ((i + 1) % globalFrequency === 0) {
+      const resource =
+        recommendedResources[resourceIdx % recommendedResources.length];
+
       items.push({
-        type: 'idea',
-        data: sortedFeedIdeas[i],
-        key: `idea-${sortedFeedIdeas[i].id}`
+        type: 'resource',
+        data: resource,
+        key: `feed-resource-${resource.id}-${i}`,
       });
 
-      // After every N ideas, insert one active Recommended Resource sequentially
-      if ((i + 1) % globalFrequency === 0) {
-        const resource = recommendedResources[resourceIdx % recommendedResources.length];
-        items.push({
-          type: 'resource',
-          data: resource,
-          key: `feed-resource-${resource.id}-${i}`
-        });
-        resourceIdx++;
-      }
+      resourceIdx++;
     }
+  }
 
-    return items;
-  }, [sortedFeedIdeas, recommendedResources, globalFrequency]);
+  return items;
+}, [sortedFeedIdeas, recommendedResources, globalFrequency]);
 
   // Track viewed ideas with IntersectionObserver
   useEffect(() => {
@@ -303,8 +333,29 @@ export default function HomePage() {
         <AdUnit type="header-banner" />
       </div>
 
+      <style>{`
+        @keyframes feed-slide-up {
+          0% {
+            opacity: 0.85;
+            transform: translateY(24px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .feed-reveal-active {
+          animation: feed-slide-up 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .feed-reveal-active {
+            animation: none !important;
+          }
+        }
+      `}</style>
+
       {/* Native Full-Screen CSS Snap-Scroll Feed Container */}
-      <main className="flex-1 overflow-y-auto snap-y snap-mandatory">
+      <main className={`flex-1 overflow-y-auto snap-y snap-mandatory ${isFeedRevealed ? 'feed-reveal-active' : ''}`}>
         {/* Notification Opt‑In Prompt */}
         {showNotificationPrompt && (
           <NotificationPrompt isVisible={showNotificationPrompt} onClose={handleNotificationClose} />
@@ -421,6 +472,9 @@ export default function HomePage() {
         onInstall={handlePwaInstall}
         onDismiss={handlePwaDismiss}
       />
+
+      {/* Premium Refresh Overlay */}
+      <PremiumRefreshOverlay visible={isRefreshing} />
 
       {/* GDPR / ePrivacy Cookie Consent */}
       <CookieConsent />

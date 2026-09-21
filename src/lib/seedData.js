@@ -3,6 +3,7 @@
 
 export const SEED_IDEAS = [
   {
+    pinned: true,
     id: "idea-print-on-demand",
     slug: "print-on-demand-zero-investment",
     title: "Festival Camera Rental Portrait Service",

@@ -12,7 +12,8 @@ import Toast from '@/components/Toast';
 import Footer from '@/components/Footer';
 import { 
   getPublishedIdeas, getSavedIds, getViewedIds, 
-  markAsViewed, getMaintenanceConfig 
+  markAsViewed, getMaintenanceConfig,
+  getPinnedHeroIdea
 } from '@/lib/ideasStore';
 import { SEED_IDEAS } from '@/lib/seedData';
 import { trackEvent } from '@/lib/analytics';
@@ -39,7 +40,15 @@ export default function HomePage() {
     handleInstall: handlePwaInstall,
     handleDismiss: handlePwaDismiss,
   } = usePwaInstall();
-  const [rawIdeas, setRawIdeas] = useState(SEED_IDEAS);
+  const [pinnedHeroId, setPinnedHeroId] = useState(null);
+
+  // Load pinned hero idea ID from Firestore after client mount
+  useEffect(() => {
+    (async () => {
+      const id = await getPinnedHeroIdea();
+      if (id) setPinnedHeroId(id);
+    })();
+  }, []);
   const [visibleCount, setVisibleCount] = useState(INITIAL_FEED_LIMIT);
   const sentinelRef = useRef(null);
   // Start with the overlay hidden so the feed (and LCP image) is immediately visible.
@@ -50,6 +59,8 @@ export default function HomePage() {
   const [recommendedResources, setRecommendedResources] = useState([]);
   const [globalFrequency, setGlobalFrequency] = useState(7);
   const [isClient, setIsClient] = useState(false);
+  const [rawIdeas, setRawIdeas] = useState([]);
+
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
@@ -158,7 +169,7 @@ export default function HomePage() {
   const sortedFeedIdeas = useMemo(() => {
     if (!rawIdeas.length) return [];
 
-    const HERO_ID = SEED_IDEAS[0]?.id || 'idea-print-on-demand';
+    const HERO_ID = pinnedHeroId || SEED_IDEAS[0]?.id || 'idea-print-on-demand';
     const hero = rawIdeas.find(i => i.id === HERO_ID);
     const otherIdeas = rawIdeas.filter(i => i.id !== HERO_ID);
 

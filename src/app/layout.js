@@ -1,6 +1,8 @@
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
+import Script from "next/script";
+import { GoogleAnalytics } from "@next/third-parties/google";
 
 const jakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -76,15 +78,18 @@ export default function RootLayout({ children }) {
           fetchPriority="high"
         />
         {/* Instant dark mode initialization to prevent FOUC */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('sei_theme_preference_v1');if(t==='dark'||(t===null&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()`
-          }}
-        />
+        <Script id="theme-init" strategy="beforeInteractive">
+          {`(function(){try{var t=localStorage.getItem('sei_theme_preference_v1');if(t==='dark'||(t===null&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()`}
+        </Script>
       </head>
       <body className="min-h-full flex flex-col font-sans bg-slate-100 text-slate-900 selection:bg-teal-500 selection:text-white">
         <ServiceWorkerRegister />
         {children}
+
+        {process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID && (
+          <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID} />
+        )}
+
       </body>
     </html>
   );

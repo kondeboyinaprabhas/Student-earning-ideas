@@ -1,13 +1,13 @@
-// src/app/robots.js - Dynamic robots.txt with Admin Protection
+// src/app/robots.js
 export default function robots() {
   return {
     rules: [
       {
-        userAgent: '*',
-        allow: '/',
-        disallow: ['/admin', '/preview/']
-      }
+        userAgent: "*",
+        allow: "/",
+        disallow: ["/admin", "/preview/"],
+      },
     ],
-    sitemap: 'https://student-earning-ideas.vercel.app/sitemap.xml'
+    sitemap: "https://studentearningideas.in/sitemap.xml",
   };
 }

@@ -6,10 +6,8 @@ import Link from 'next/link';
 import { 
   Search, Filter, Plus, Edit3, Eye, Trash2, History, 
   Send, Archive, RefreshCw, FileSpreadsheet, FileCode,
-  Layers, CheckCircle2, Clock, Calendar, ChevronRight, X,
-  Star
+  Layers, CheckCircle2, Clock, Calendar, ChevronRight, X
 } from 'lucide-react';
-import { getPinnedHeroIdea, setPinnedHeroIdea } from '@/lib/ideasStore';
 import { exportBlueprintsAsCSV, exportBlueprintsAsJSON } from '@/lib/firestoreStore';
 import { CATEGORIES } from '@/lib/seedData';
 
@@ -78,39 +76,10 @@ export default function BlueprintsListView({
 
   const [deleteConfirmTarget, setDeleteConfirmTarget] = useState(null);
 
-  // Pinned hero state
-  const [pinnedHeroId, setPinnedHeroId] = useState('');
-  const [loadingPinned, setLoadingPinned] = useState(true);
-
   const handleConfirmDelete = () => {
     if (deleteConfirmTarget) {
       onSoftDeleteIdea(deleteConfirmTarget.id, deleteConfirmTarget.status === 'Published' ? 'published' : 'draft');
       setDeleteConfirmTarget(null);
-    }
-  };
-
-  // Load pinned hero on mount
-  useEffect(() => {
-    (async () => {
-      try {
-        const id = await getPinnedHeroIdea();
-        if (id) setPinnedHeroId(id);
-      } catch (e) {
-        console.warn('Failed to load pinned hero idea', e);
-      } finally {
-        setLoadingPinned(false);
-      }
-    })();
-  }, []);
-
-  // Handle pin change
-  const handlePinChange = async (e) => {
-    const newId = e.target.value;
-    try {
-      await setPinnedHeroIdea(newId);
-      setPinnedHeroId(newId);
-    } catch (err) {
-      console.warn('Failed to set pinned hero', err);
     }
   };
 
@@ -221,22 +190,6 @@ export default function BlueprintsListView({
         </div>
       </div>
 
-      {/* Pinned Hero Selector */}
-      <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 mt-3 flex items-center gap-2 text-xs">
-        <span className="font-medium text-slate-300">Pinned Hero Idea:</span>
-        <select
-          value={pinnedHeroId}
-          disabled={loadingPinned}
-          onChange={handlePinChange}
-          className="bg-slate-700 border border-slate-600 text-slate-200 rounded px-2 py-1 focus:outline-none focus:border-teal-500"
-        >
-          <option value="">-- Select Idea --</option>
-          {publishedIdeas.map(i => (
-            <option key={i.id} value={i.id}>{i.title || i.subtitle || 'Untitled'}</option>
-          ))}
-        </select>
-      </div>
-
       {/* Blueprints Table */}
       <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden">
         {filtered.length === 0 ? (
@@ -337,17 +290,6 @@ export default function BlueprintsListView({
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
 
-{/* Star Set as Hero */}
-<button
-  onClick={async () => {
-    await setPinnedHeroIdea(idea.id);
-    setPinnedHeroId(idea.id);
-  }}
-  className={`p-1.5 rounded-lg transition-colors ${pinnedHeroId === idea.id ? 'bg-teal-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-teal-500 hover:text-white'}`}
-  title="Set as Pinned Hero"
->
-  <Star className="w-3.5 h-3.5" />
-</button>
 
                           {/* Version History Button */}
                           <button

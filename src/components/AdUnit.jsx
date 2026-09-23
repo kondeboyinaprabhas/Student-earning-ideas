@@ -2,12 +2,18 @@
 'use client';
 
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { ExternalLink, Info, X } from 'lucide-react';
 
-export default function AdUnit({ type = "in-article", index = 0, className = "" }) {
+export default function AdUnit({ type = "in-article", index = 0, className = "", show = true }) {
   const [collapsed, setCollapsed] = useState(false);
+  const pathname = usePathname();
 
-  if (collapsed) return null;
+  // Exclude non-content screens: admin, preview, editor, api, and utility routes
+  if (!show || collapsed) return null;
+  if (pathname && (pathname.startsWith('/admin') || pathname.startsWith('/preview') || pathname.startsWith('/api'))) {
+    return null;
+  }
 
   if (type === "header-banner") {
     return (

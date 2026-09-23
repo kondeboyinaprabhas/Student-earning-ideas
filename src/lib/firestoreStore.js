@@ -12,11 +12,12 @@ export { db };
 
 // ─── Collection names ────────────────────────────────────────────────────────
 export const COLLECTIONS = {
+  // ... existing collections ...
+  SETTINGS: 'settings',
   SUBMISSIONS: 'submissions',
   ACTIVITY_LOG: 'adminActivityLog',
   BLUEPRINTS: 'blueprints',
   RECOMMENDED_RESOURCES: 'recommendedResources',
-  SETTINGS: 'settings',
   PUSH_SUBSCRIPTIONS: 'pushSubscriptions',
 };
 
@@ -43,6 +44,103 @@ export async function setGlobalFrequency(value) {
     return { success: true };
   } catch (err) {
     console.error('[Firestore] setGlobalFrequency error:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+// Recommended Resources CRUD
+
+// ─── Welcome Blueprint Card helpers ─────────────────────────────────────────────
+export const WELCOME_HERO_IMAGE_DEFAULT =
+  'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1200&h=675&q=80';
+
+export const DEFAULT_WELCOME_HERO = {
+  enabled: true,
+  heroEnabled: true,
+  title: 'Real Business Blueprints for Indian Students',
+  tagline: 'Learn practical earning ideas with complete step-by-step plans.',
+  description:
+    'Tested, actionable ways to earn in college with zero upfront capital. Every blueprint is reviewed for feasibility, realistic time commitments, and honest profit margins.',
+  imageUrl: WELCOME_HERO_IMAGE_DEFAULT,
+  heroImage: WELCOME_HERO_IMAGE_DEFAULT,
+  images: [WELCOME_HERO_IMAGE_DEFAULT],
+  scrollHintText: "Explore today's latest blueprints",
+  installButtonText: 'Install Student Earning Ideas',
+  trustBadges: [
+    'Zero Investment Options',
+    'Step-by-Step Plans',
+    'Action Tools',
+    'Regular Updates',
+  ],
+  blueprintPreviewText:
+    'Every blueprint in our collection gives you a complete, practical roadmap:',
+  howItWorksSummary:
+    'Browse verified blueprints, pick one matching your schedule and skills, use our calculators to budget, and follow actionable launch steps.',
+  investmentPreview: '₹0 – ₹1,000 avg',
+  startupPreview: 'Free tools & zero-inventory',
+  riskPreview: 'Zero-debt, skill-first',
+  ctaText: 'Explore Blueprints',
+  ctaLink: '/#feed',
+};
+
+/** Retrieve the Welcome Blueprint configuration */
+export async function getWelcomeHero() {
+  try {
+    if (!db) return DEFAULT_WELCOME_HERO;
+    const docRef = doc(db, COLLECTIONS.SETTINGS, 'welcomeHero');
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) return DEFAULT_WELCOME_HERO;
+    const data = snap.data();
+    const resolvedImages = Array.isArray(data.images) && data.images.length > 0
+      ? data.images.filter(Boolean)
+      : (data.imageUrl || data.heroImage ? [data.imageUrl || data.heroImage] : [WELCOME_HERO_IMAGE_DEFAULT]);
+    const resolvedImageUrl = resolvedImages[0] || data.imageUrl || data.heroImage || WELCOME_HERO_IMAGE_DEFAULT;
+    const isEnabled = data.enabled !== undefined ? data.enabled : (data.heroEnabled !== undefined ? data.heroEnabled : true);
+    const rawInstallText = data.installButtonText || '';
+    const installButtonText = (rawInstallText && !rawInstallText.toLowerCase().includes('offline'))
+      ? rawInstallText
+      : 'Install Student Earning Ideas';
+
+    return {
+      ...DEFAULT_WELCOME_HERO,
+      ...data,
+      images: resolvedImages,
+      imageUrl: resolvedImageUrl,
+      heroImage: resolvedImageUrl,
+      installButtonText,
+      enabled: isEnabled,
+      heroEnabled: isEnabled,
+      trustBadges: Array.isArray(data.trustBadges) && data.trustBadges.length > 0
+        ? data.trustBadges
+        : DEFAULT_WELCOME_HERO.trustBadges,
+    };
+  } catch (err) {
+    console.error('[Firestore] getWelcomeHero error:', err);
+    return DEFAULT_WELCOME_HERO;
+  }
+}
+
+/** Set or update the Welcome Blueprint configuration */
+export async function setWelcomeHero(data) {
+  try {
+    if (!db) throw new Error('Database not initialized');
+    const docRef = doc(db, COLLECTIONS.SETTINGS, 'welcomeHero');
+    const resolvedImages = Array.isArray(data.images) && data.images.length > 0
+      ? data.images.filter(Boolean)
+      : (data.imageUrl || data.heroImage ? [data.imageUrl || data.heroImage] : [WELCOME_HERO_IMAGE_DEFAULT]);
+    const primaryImg = resolvedImages[0] || WELCOME_HERO_IMAGE_DEFAULT;
+    const payload = {
+      ...data,
+      images: resolvedImages,
+      heroImage: primaryImg,
+      imageUrl: primaryImg,
+      heroEnabled: data.enabled !== undefined ? data.enabled : (data.heroEnabled !== undefined ? data.heroEnabled : true),
+      enabled: data.enabled !== undefined ? data.enabled : (data.heroEnabled !== undefined ? data.heroEnabled : true),
+    };
+    await setDoc(docRef, payload, { merge: true });
+    return { success: true };
+  } catch (err) {
+    console.error('[Firestore] setWelcomeHero error:', err);
     return { success: false, error: err.message };
   }
 }

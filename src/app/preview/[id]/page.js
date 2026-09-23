@@ -107,6 +107,7 @@ function DraftPreviewContent() {
           idea={draft}
           index={0}
           allIdeas={[draft]}
+          showAds={false}
         />
       </main>
     </div>

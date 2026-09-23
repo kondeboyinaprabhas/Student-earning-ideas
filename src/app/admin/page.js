@@ -8,9 +8,23 @@ import {
   Plus, Edit3, Trash2, Eye, Share2, History, Check, 
   ArrowLeft, RefreshCw, LayoutGrid, Calendar, Layers, ShieldCheck, 
   Save, Send, ExternalLink, Inbox, FileText, Bell, Volume2, VolumeX,
-  Clock, RotateCcw, Archive, Sparkles, CheckCircle2, ChevronRight
+  Clock, RotateCcw, Archive, Sparkles, CheckCircle2, ChevronRight, X
 } from 'lucide-react';
 import AdminAuth from '@/components/admin/AdminAuth';
+
+// Supported preset chips for Blueprint Feature Badges
+export const FEATURE_BADGE_PRESETS = [
+  'Zero Investment',
+  'Step-by-Step',
+  'High Hourly Rate',
+  'Weekend Cash',
+  'Team Friendly',
+  'Beginner Friendly',
+  'Fast Setup',
+  'Low Risk',
+  'Recurring Orders',
+  'AI Accelerated'
+];
 
 // Default empty form data used for initializing and resetting form state
 const emptyFormData = {
@@ -30,6 +44,7 @@ const emptyFormData = {
   difficulty: 'Beginner',
   timeRequired: '1–2 hrs / day',
   tags: ['Online', 'Beginner'],
+  trustBadges: [],
   summary: '',
   howItWorks: [
     'Understand student customer demand and identify a niche.',
@@ -80,6 +95,7 @@ import VersionHistoryModal from '@/components/admin/VersionHistoryModal';
 import MaintenanceControl from '@/components/admin/MaintenanceControl';
 import AnonymousAnalyticsView from '@/components/admin/AnonymousAnalyticsView';
 import AdminPushBroadcast from '@/components/admin/AdminPushBroadcast';
+import WelcomeHeroManager from '@/components/admin/WelcomeHeroManager';
 import Toast from '@/components/Toast';
 
 // Store & Firebase
@@ -138,6 +154,19 @@ export default function AdminPage() {
   const [selectedIdeaForVersion, setSelectedIdeaForVersion] = useState(null);
   const [isEditingExisting, setIsEditingExisting] = useState(false);
   const [scheduledDate, setScheduledDate] = useState('');
+  const [customBadgeInput, setCustomBadgeInput] = useState('');
+
+  const handleAddCustomBadge = () => {
+    const trimmed = customBadgeInput.trim();
+    if (!trimmed) return;
+    if (!(formData.trustBadges || []).includes(trimmed)) {
+      setFormData(prev => ({
+        ...prev,
+        trustBadges: [...(prev.trustBadges || []), trimmed]
+      }));
+    }
+    setCustomBadgeInput('');
+  };
 
   // Toast Helper
   const showToast = useCallback((msg) => {
@@ -306,6 +335,7 @@ export default function AdminPage() {
       ...emptyFormData,
       id: newId,
       likes: 0,
+      trustBadges: [],
     });
     setActiveTab('editor');
   };
@@ -315,6 +345,7 @@ export default function AdminPage() {
     setFormData({
       ...emptyFormData,
       ...idea,
+      trustBadges: Array.isArray(idea.trustBadges) ? idea.trustBadges : [],
       likes: typeof idea.likes === 'number' ? idea.likes : 0,
       howItWorks: idea.howItWorks?.length ? idea.howItWorks : (idea.breakdown?.howItWorks || []),
       summary: idea.summary || idea.breakdown?.summary || '',
@@ -495,6 +526,26 @@ export default function AdminPage() {
     return submissions.filter(s => s.deleted);
   }, [submissions]);
 
+  // Broken link auto-repair persistence handler
+  const handleFixBrokenLinks = async (updatedIdeas, userAdminEmail = 'Founder Admin') => {
+    for (const item of updatedIdeas) {
+      const existing = publishedIdeas.find(p => p.id === item.id);
+      if (existing) {
+        const updated = { ...existing, relatedIdeaSlugs: item.relatedIdeaSlugs };
+        await savePublishedIdea(updated);
+      }
+    }
+    await refreshLocalData();
+    handleLogAction({
+      action: 'Repair',
+      entityId: 'BrokenLinks',
+      entityType: 'Diagnostics',
+      adminEmail: userAdminEmail,
+      details: `Repaired broken related references across ${updatedIdeas.length} blueprint(s)`
+    });
+    showToast(`Repaired references in ${updatedIdeas.length} blueprint(s)!`);
+  };
+
   return (
     <AdminAuth>
       {({ user, adminEmail }) => (
@@ -605,7 +656,10 @@ export default function AdminPage() {
                   </div>
 
                   {/* Diagnostics & Controls */}
-                  <BrokenLinkScanner ideas={publishedIdeas} />
+                  <BrokenLinkScanner 
+                    ideas={publishedIdeas} 
+                    onFixLink={(updated) => handleFixBrokenLinks(updated, adminEmail)} 
+                  />
                   <PreLaunchTestingAudit ideas={publishedIdeas} />
                   <AnonymousAnalyticsView />
                   <MaintenanceControl />
@@ -682,6 +736,13 @@ export default function AdminPage() {
                 </div>
               )}
 
+              {/* TAB: WELCOME HERO */}
+              {activeTab === 'welcome-hero' && (
+                <div className="animate-in fade-in">
+                  <WelcomeHeroManager showToast={showToast} />
+                </div>
+              )}
+
               {/* TAB 7: BLUEPRINT EDITOR */}
               {activeTab === 'editor' && (
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-in fade-in">
@@ -743,7 +804,7 @@ export default function AdminPage() {
                             type="text"
                             value={formData.title}
                             onChange={e => setFormData({ ...formData, title: e.target.value })}
-                            placeholder="e.g. Festival Camera Rental Portrait Service"
+                            placeholder="e.g. Start a Print-on-Demand Business with Zero Investment"
                             className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-teal-500"
                           />
                         </div>
@@ -757,6 +818,109 @@ export default function AdminPage() {
                             placeholder="e.g. Design t-shirts, mugs and more. Sell them online without holding any stock."
                             className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white outline-none focus:border-teal-500"
                           />
+                        </div>
+
+                        {/* Feature Badges (Trust Badges) */}
+                        <div className="bg-slate-950/60 border border-slate-800 rounded-2xl p-3.5 space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <label className="block text-xs font-bold text-slate-200">
+                                Feature Badges (Trust Chips)
+                              </label>
+                              <p className="text-[11px] text-slate-400">
+                                Select badges or type custom. Identical styling to seed ideas.
+                              </p>
+                            </div>
+                            {/* Live Badge Preview using identical IdeaCard styling */}
+                            <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                              {(formData.trustBadges || []).map((badge, idx) => (
+                                <span
+                                  key={idx}
+                                  className="inline-flex items-center gap-1 text-[10px] font-semibold bg-slate-800 text-slate-300 px-2 py-0.5 rounded-md border border-slate-700/60 animate-in fade-in"
+                                >
+                                  <Sparkles className="w-2.5 h-2.5 text-teal-400 shrink-0" />
+                                  <span>{badge}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setFormData(prev => ({
+                                        ...prev,
+                                        trustBadges: (prev.trustBadges || []).filter((_, i) => i !== idx)
+                                      }));
+                                    }}
+                                    className="ml-1 text-slate-400 hover:text-rose-400 cursor-pointer"
+                                    title="Remove badge"
+                                  >
+                                    <X className="w-2.5 h-2.5" />
+                                  </button>
+                                </span>
+                              ))}
+                              {(!formData.trustBadges || formData.trustBadges.length === 0) && (
+                                <span className="text-[10px] text-slate-500 italic">No badges selected</span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Quick-Select Preset Chips */}
+                          <div className="space-y-1">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                              Quick Presets:
+                            </span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {FEATURE_BADGE_PRESETS.map((preset) => {
+                                const isSelected = (formData.trustBadges || []).includes(preset);
+                                return (
+                                  <button
+                                    key={preset}
+                                    type="button"
+                                    onClick={() => {
+                                      setFormData(prev => {
+                                        const current = prev.trustBadges || [];
+                                        if (current.includes(preset)) {
+                                          return { ...prev, trustBadges: current.filter(b => b !== preset) };
+                                        } else {
+                                          return { ...prev, trustBadges: [...current, preset] };
+                                        }
+                                      });
+                                    }}
+                                    className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition-all cursor-pointer flex items-center gap-1 ${
+                                      isSelected
+                                        ? 'bg-teal-500/20 text-teal-300 border-teal-500/40 shadow-sm'
+                                        : 'bg-slate-900 text-slate-400 border-slate-800 hover:border-slate-700 hover:text-slate-200'
+                                    }`}
+                                  >
+                                    <Sparkles className={`w-2.5 h-2.5 ${isSelected ? 'text-teal-400' : 'text-slate-500'}`} />
+                                    <span>{preset}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Custom Badge Input */}
+                          <div className="flex items-center gap-2 pt-1 border-t border-slate-800/80">
+                            <input
+                              type="text"
+                              value={customBadgeInput}
+                              onChange={e => setCustomBadgeInput(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  handleAddCustomBadge();
+                                }
+                              }}
+                              placeholder="Type custom feature badge..."
+                              className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white placeholder:text-slate-600 outline-none focus:border-teal-500 flex-1 max-w-sm"
+                            />
+                            <button
+                              type="button"
+                              onClick={handleAddCustomBadge}
+                              className="bg-slate-800 hover:bg-slate-700 text-teal-400 text-xs font-bold px-3 py-1.5 rounded-xl border border-slate-700 transition-all flex items-center gap-1 cursor-pointer"
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>Add</span>
+                            </button>
+                          </div>
                         </div>
                       </div>
 
@@ -1060,7 +1224,7 @@ export default function AdminPage() {
                             type="text"
                             value={formData.seoTitle}
                             onChange={e => setFormData({ ...formData, seoTitle: e.target.value })}
-                            placeholder="e.g. Festival Camera Rental Portrait Service | Student Earning Ideas"
+                            placeholder="e.g. Start a Print-on-Demand Business with Zero Investment | Student Earning Ideas"
                             className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-xs text-white outline-none focus:border-teal-500"
                           />
                         </div>

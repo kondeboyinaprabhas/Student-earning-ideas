@@ -24,7 +24,9 @@ export default function IdeaCard({
   onSaveChange, 
   onShowToast, 
   onNavigateToIdea,
-  allIdeas = [] 
+  allIdeas = [],
+  showAds = true,
+  showBottomAd = true
 }) {
   // trackIndex moves through the slide strip (0 … N-1 real images + 1 clone of first).
   const [trackIndex, setTrackIndex] = useState(0);
@@ -583,7 +585,7 @@ export default function IdeaCard({
               <BusinessTools idea={idea} />
 
               {/* In-Article Ad Unit 1: Inside Read More after Payback Period before Step-by-Step */}
-              <AdUnit type="in-article" index={index} className="my-4" />
+              {showAds && <AdUnit type="in-article" index={index} className="my-4" />}
 
               {/* 6. Step-by-Step Implementation Guide */}
               {idea.implementationSteps?.length > 0 && (
@@ -693,7 +695,9 @@ export default function IdeaCard({
         </div>
 
         {/* 2. Restored Original End-of-Article AdSense Placement */}
-        <AdUnit type="in-article" index={index} className="mt-4" />
+        {showAds && showBottomAd && (
+          <AdUnit type={index % 2 === 1 ? "in-feed" : "in-article"} index={index} className="mt-4" />
+        )}
       </div>
     </article>
   );

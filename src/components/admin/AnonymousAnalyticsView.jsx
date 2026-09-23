@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp, Search, Bookmark, Heart, Share2, Calculator, CheckSquare, Eye } from 'lucide-react';
+import { BarChart3, Search, Bookmark, Heart, Share2, Eye } from 'lucide-react';
 import { getAnalyticsReport } from '@/lib/analytics';
 
 export default function AnonymousAnalyticsView() {
@@ -52,18 +52,20 @@ export default function AnonymousAnalyticsView() {
 
         <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800">
           <div className="flex items-center justify-between text-slate-400 mb-1">
-            <span>Calculator Taps</span>
-            <Calculator className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Blueprints Expanded</span>
+            <Eye className="w-3.5 h-3.5 text-emerald-500" />
           </div>
-          <span className="text-xl font-extrabold text-white">{report.calculatorUsage}</span>
+          <span className="text-xl font-extrabold text-white">
+            {report.readExpandsCount || (report.mostReadIdeas || []).reduce((acc, curr) => acc + curr[1], 0)}
+          </span>
         </div>
 
         <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800">
           <div className="flex items-center justify-between text-slate-400 mb-1">
-            <span>Checklists Done</span>
-            <CheckSquare className="w-3.5 h-3.5 text-sky-500" />
+            <span>Shares Recorded</span>
+            <Share2 className="w-3.5 h-3.5 text-sky-500" />
           </div>
-          <span className="text-xl font-extrabold text-white">{report.checklistCompletions}</span>
+          <span className="text-xl font-extrabold text-white">{report.sharesCount || 0}</span>
         </div>
       </div>
 

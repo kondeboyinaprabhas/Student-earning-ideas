@@ -2,6 +2,7 @@
 // Note: Firebase Auth is in @/lib/firebaseAuth to keep the public bundle lightweight.
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 
 // Approved admin email whitelist
 export const ADMIN_EMAILS = [
@@ -24,5 +25,6 @@ const firebaseConfig = {
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 export const db = getFirestore(app);
+export const storage = getStorage(app);
 
 export { app };

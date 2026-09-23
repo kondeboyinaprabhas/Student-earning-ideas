@@ -70,20 +70,20 @@ export default function RootLayout({ children }) {
         <link rel="preconnect" href="https://images.unsplash.com" />
         <link rel="dns-prefetch" href="https://images.unsplash.com" />
         {/* LCP image preload — browser discovers this immediately on parse, before React hydrates.
-            The hero IdeaCard uses unoptimized={isLcp} so the img src is this exact URL.
+            The Welcome Blueprint Card uses unoptimized so the img src is this exact URL.
             This preload matches the rendered element byte-for-byte. */}
         <link
           rel="preload"
           as="image"
-          href="https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=720&q=75"
+          href="https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1200&h=675&q=80"
           fetchPriority="high"
         />
+      </head>
+      <body className="min-h-full flex flex-col font-sans bg-slate-100 text-slate-900 selection:bg-teal-500 selection:text-white">
         {/* Instant dark mode initialization to prevent FOUC */}
         <Script id="theme-init" strategy="beforeInteractive">
           {`(function(){try{var t=localStorage.getItem('sei_theme_preference_v1');if(t==='dark'||(t===null&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()`}
         </Script>
-      </head>
-      <body className="min-h-full flex flex-col font-sans bg-slate-100 text-slate-900 selection:bg-teal-500 selection:text-white">
         <ServiceWorkerRegister />
         {children}
 

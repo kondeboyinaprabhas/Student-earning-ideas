@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { 
   LayoutDashboard, Inbox, FileText, Trash2, History, 
   ArrowLeft, Bell, BellOff, Volume2, VolumeX, Shield, 
-  Menu, X, Sparkles, ChevronRight, Plus
+  Menu, X, Sparkles, ChevronRight, Plus, LayoutTemplate
 } from 'lucide-react';
 import StudentLogo from '../StudentLogo';
 
@@ -69,6 +69,13 @@ export default function AdminSidebar({
       icon: Bell,
       badge: null,
       description: 'Instant web push alerts'
+    },
+    {
+      id: 'welcome-hero',
+      label: 'Welcome Blueprint',
+      icon: LayoutTemplate,
+      badge: null,
+      description: 'Homepage welcome blueprint card'
     }
   ];
 

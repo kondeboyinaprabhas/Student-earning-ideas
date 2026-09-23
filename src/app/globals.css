@@ -63,3 +63,25 @@
   content-visibility: auto;
   contain-intrinsic-size: auto 680px;
 }
+
+/* Feed slide-up entrance animation */
+@keyframes feed-slide-up {
+  0% {
+    opacity: 0.85;
+    transform: translateY(24px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.feed-reveal-active {
+  animation: feed-slide-up 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feed-reveal-active {
+    animation: none !important;
+  }
+}

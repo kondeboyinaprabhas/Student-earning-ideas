@@ -13,7 +13,7 @@ export default function LiveMobilePreview({ ideaData, allIdeas = [] }) {
     subtitle: ideaData.subtitle || "Your compelling subtitle and overview description will appear here in the live feed.",
     category: ideaData.category || "Online Business",
     categoryColor: ideaData.categoryColor || "emerald",
-    trustBadges: ideaData.trustBadges?.length ? ideaData.trustBadges : ["Verified Blueprint", "Student Friendly"],
+    trustBadges: Array.isArray(ideaData.trustBadges) ? ideaData.trustBadges : [],
     heroImage: ideaData.heroImage || "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=1200&q=80",
     carouselImages: ideaData.carouselImages?.length ? ideaData.carouselImages : [ideaData.heroImage || "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?auto=format&fit=crop&w=1200&q=80"],
     likes: typeof ideaData.likes === 'number' ? ideaData.likes : 0,

@@ -60,11 +60,23 @@ export function usePwaInstall() {
     const isAppleDevice = /iphone|ipad|ipod/.test(userAgent);
     setIsIos(isAppleDevice);
 
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[PWA Diagnostics] Initial state:', {
+        isStandalone: standalone,
+        canInstallNative: false,
+        isIos: isAppleDevice,
+        hasDeferredPrompt: false,
+      });
+    }
+
     // Listen for beforeinstallprompt (Chrome / Android / Edge)
     const handleBeforeInstallPrompt = (e) => {
       e.preventDefault();
       deferredPromptRef.current = e;
       setCanInstallNative(true);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[PWA Diagnostics] beforeinstallprompt event captured! canInstallNative = true');
+      }
     };
 
     // Listen for appinstalled
@@ -73,6 +85,10 @@ export function usePwaInstall() {
       setStorage(STORAGE_KEYS.ACCEPTED, 'true');
       setIsVisible(false);
       deferredPromptRef.current = null;
+      setCanInstallNative(false);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[PWA Diagnostics] appinstalled event fired.');
+      }
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -146,10 +162,20 @@ export function usePwaInstall() {
    * User clicked "Install App"
    */
   const handleInstall = useCallback(async () => {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[PWA Diagnostics] handleInstall called:', {
+        hasDeferredPrompt: !!deferredPromptRef.current,
+        canInstallNative,
+        isIos,
+        isStandalone,
+      });
+    }
+
     // If native install prompt is available (Chrome / Edge / Android)
     if (deferredPromptRef.current) {
       const promptEvent = deferredPromptRef.current;
       deferredPromptRef.current = null; // Prevent multiple prompt() invocations on same event
+      setCanInstallNative(false);
 
       try {
         await promptEvent.prompt();
@@ -174,9 +200,9 @@ export function usePwaInstall() {
       }
     }
 
-    // For iOS / browsers without beforeinstallprompt: return platform mode
-    return { success: false, isIos };
-  }, [promptIdea, isIos, setStorage]);
+    // For iOS / browsers without beforeinstallprompt (e.g. localhost testing or unsupported browsers)
+    return { success: false, isIos, fallback: true };
+  }, [promptIdea, isIos, isStandalone, canInstallNative, setStorage]);
 
   /**
    * User clicked "Dismiss" / "Not now"

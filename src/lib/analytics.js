@@ -68,6 +68,8 @@ export function getAnalyticsReport() {
     likesCount: store.summary?.like || 0,
     savesCount: store.summary?.save || 0,
     sharesCount: store.summary?.share || 0,
+    viewsCount: store.summary?.view_idea || 0,
+    readExpandsCount: store.summary?.read_expand || 0,
     scrollDepthCounts: {
       depth_25: store.summary?.scroll_depth_25 || 0,
       depth_50: store.summary?.scroll_depth_50 || 0,

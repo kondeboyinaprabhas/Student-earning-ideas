@@ -3,10 +3,9 @@
 
 export const SEED_IDEAS = [
   {
-    pinned: true,
     id: "idea-print-on-demand",
     slug: "print-on-demand-zero-investment",
-    title: "Festival Camera Rental Portrait Service",
+    title: "Start a Print-on-Demand Business with Zero Investment",
     subtitle: "Design t-shirts, mugs, posters and more. Sell them online without holding any physical stock.",
     category: "Online Business",
     categoryColor: "emerald",
@@ -126,7 +125,7 @@ export const SEED_IDEAS = [
     carouselImages: [
       "https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?auto=format&fit=crop&w=720&q=75",
       "https://images.unsplash.com/photo-1542744094-3a31f272c490?auto=format&fit=crop&w=720&q=75",
-      "https://images.unsplash.com/photo-1581291518655-9523c932deda?auto=format&fit=crop&w=720&q=75"
+      "https://images.unsplash.com/photo-1626785774573-4b799315345d?auto=format&fit=crop&w=720&q=75"
     ],
     likes: 1980,
     shares: 640,
@@ -234,7 +233,7 @@ export const SEED_IDEAS = [
     heroImage: "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?auto=format&fit=crop&w=720&q=75",
     carouselImages: [
       "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?auto=format&fit=crop&w=720&q=75",
-      "https://images.unsplash.com/photo-1536240478700-b869070f9279?auto=format&fit=crop&w=720&q=75",
+      "https://images.unsplash.com/photo-1535016120720-40c646be5580?auto=format&fit=crop&w=720&q=75",
       "https://images.unsplash.com/photo-1492691527719-9d1e07e534b4?auto=format&fit=crop&w=720&q=75"
     ],
     likes: 3120,

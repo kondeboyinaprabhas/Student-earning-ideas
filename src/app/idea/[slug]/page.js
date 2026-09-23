@@ -11,13 +11,16 @@ import Footer from '@/components/Footer';
 import Toast from '@/components/Toast';
 import SearchModal from '@/components/SearchModal';
 import { getPublishedIdeas, getSavedIds } from '@/lib/ideasStore';
+import { SEED_IDEAS } from '@/lib/seedData';
 
 export default function IdeaDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const [ideas, setIdeas] = useState([]);
+  const [ideas, setIdeas] = useState(SEED_IDEAS);
   const [savedIds, setSavedIds] = useState([]);
-  const [currentIdea, setCurrentIdea] = useState(null);
+  const [currentIdea, setCurrentIdea] = useState(() => {
+    return SEED_IDEAS.find(i => i.slug === params?.slug || i.id === params?.slug) || null;
+  });
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
 

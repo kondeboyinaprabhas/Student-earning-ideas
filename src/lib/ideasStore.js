@@ -484,33 +484,15 @@ export function setCookieConsent(accepted) {
   safeSet(STORAGE_KEYS.COOKIE_CONSENT, accepted);
 }
 
-// ---------- New Pinned Hero Idea Settings ----------
-// Retrieve the pinned hero idea ID from Firestore settings.
+// ---------- Deprecated Pinned Hero (Replaced by independent WelcomeHero) ----------
 export async function getPinnedHeroIdea() {
-  try {
-    const { db } = await import('./firebase');
-    if (!db) return null;
-    const { doc, getDoc } = await import('firebase/firestore');
-    const snap = await getDoc(doc(db, 'settings', 'pinnedHeroIdea'));
-    if (snap.exists()) {
-      const data = snap.data();
-      return data?.ideaId || null;
-    }
-    return null;
-  } catch (e) {
-    console.warn('[ideasStore] getPinnedHeroIdea fallback:', e);
-    return null;
-  }
+  return null;
 }
 
-// Save the selected pinned hero idea ID to Firestore.
-export async function setPinnedHeroIdea(ideaId) {
-  try {
-    const { db } = await import('./firebase');
-    if (!db) return;
-    const { doc, setDoc } = await import('firebase/firestore');
-    await setDoc(doc(db, 'settings', 'pinnedHeroIdea'), { ideaId });
-  } catch (e) {
-    console.warn('[ideasStore] setPinnedHeroIdea error:', e);
-  }
+export async function setPinnedHeroIdea() {
+  // No-op: Pinned hero replaced by independent Welcome Hero
 }
+
+// Re-export Welcome Hero helpers from firestoreStore for full backward compatibility
+export { getWelcomeHero, setWelcomeHero } from './firestoreStore';
+

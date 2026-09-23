@@ -12,13 +12,19 @@ import Toast from '@/components/Toast';
 import Footer from '@/components/Footer';
 import { 
   getPublishedIdeas, getSavedIds, getViewedIds, 
-  markAsViewed, getMaintenanceConfig,
-  getPinnedHeroIdea
+  markAsViewed, getMaintenanceConfig
 } from '@/lib/ideasStore';
+import { 
+  fetchRecommendedResources, 
+  getGlobalFrequency, 
+  getWelcomeHero,
+  DEFAULT_WELCOME_HERO
+} from '@/lib/firestoreStore';
 import { SEED_IDEAS } from '@/lib/seedData';
 import { trackEvent } from '@/lib/analytics';
 import { X, Sparkles } from 'lucide-react';
 import { usePwaInstall } from '@/hooks/usePwaInstall';
+import WelcomeHero from '@/components/WelcomeHero';
 
 // Dynamically import non-critical modals and prompts to reduce initial JS payload
 const SearchModal = dynamic(() => import('@/components/SearchModal'), { ssr: false });
@@ -36,19 +42,12 @@ export default function HomePage() {
     isVisible: isPwaPromptVisible,
     promptIdea: pwaPromptIdea,
     isIos: isPwaIos,
+    isStandalone,
+    canInstallNative,
     triggerOnIdeaView,
     handleInstall: handlePwaInstall,
     handleDismiss: handlePwaDismiss,
   } = usePwaInstall();
-  const [pinnedHeroId, setPinnedHeroId] = useState(null);
-
-  // Load pinned hero idea ID from Firestore after client mount
-  useEffect(() => {
-    (async () => {
-      const id = await getPinnedHeroIdea();
-      if (id) setPinnedHeroId(id);
-    })();
-  }, []);
   const [visibleCount, setVisibleCount] = useState(INITIAL_FEED_LIMIT);
   const sentinelRef = useRef(null);
   // Start with the overlay hidden so the feed (and LCP image) is immediately visible.
@@ -59,29 +58,39 @@ export default function HomePage() {
   const [recommendedResources, setRecommendedResources] = useState([]);
   const [globalFrequency, setGlobalFrequency] = useState(7);
   const [isClient, setIsClient] = useState(false);
-  const [rawIdeas, setRawIdeas] = useState([]);
+  const [rawIdeas, setRawIdeas] = useState(SEED_IDEAS);
+  const [welcomeHeroConfig, setWelcomeHeroConfig] = useState(DEFAULT_WELCOME_HERO);
+  const [feedOrderIds, setFeedOrderIds] = useState(null);
 
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
   const [vignetteAdVisible, setVignetteAdVisible] = useState(false);
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
-  const [viewedIdeaCount, setViewedIdeaCount] = useState(0);
   const [maintenance, setMaintenance] = useState({ enabled: false, message: '' });
-  const viewedIdeaIds = useRef(new Set());
   const previousScrollY = useRef(0);
+  // Dedicated notification observer & viewport visibility tracker
+  const notifObserverFiredRef = useRef(false);
+  const notifCountedIdsRef = useRef(new Set());
+  const notifObserverRef = useRef(null);
 
   useEffect(() => {
-    const dismissed = typeof window !== 'undefined' && localStorage.getItem('notification_prompt_dismissed') === 'true';
-    const shown = typeof window !== 'undefined' && localStorage.getItem('notification_prompt_shown') === 'true';
-    if (dismissed || shown) {
-      setShowNotificationPrompt(false);
+    // Clear session dismissal on fresh page load so after a refresh,
+    // the user will see the prompt again after viewing another 3-5 real idea cards.
+    if (typeof window !== 'undefined') {
+      sessionStorage.removeItem('notification_session_dismissed');
+      // Clean up legacy permanent dismissal key so previous testers/users aren't suppressed
+      localStorage.removeItem('notification_prompt_dismissed');
     }
   }, []);
+
   const [scrollCounter, setScrollCounter] = useState(0);
+
   const handleNotificationClose = () => {
     setShowNotificationPrompt(false);
-    localStorage.setItem('notification_prompt_dismissed', 'true');
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('notification_session_dismissed', 'true');
+    }
   };
 
   // Online/Offline detection using navigator.onLine only
@@ -105,20 +114,38 @@ export default function HomePage() {
     setSavedIds(getSavedIds());
     setMaintenance(getMaintenanceConfig());
 
+    // Shuffled once per page refresh on client mount so discovery is fresh,
+    // while frozen against background Firestore syncs to eliminate layout jumps.
+    const viewedIds = new Set(getViewedIds());
+    const unseen = SEED_IDEAS.filter(i => !viewedIds.has(i.id));
+    const seen = SEED_IDEAS.filter(i => viewedIds.has(i.id));
+    const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5);
+    setFeedOrderIds([...shuffle(unseen), ...shuffle(seen)].map(i => i.id));
+
     // Load data silently in the background when the browser is idle.
     // SEED_IDEAS render immediately for instant FCP and LCP.
     // Firestore updates the feed in the background without blocking the critical path.
     const loadResourcesAndFrequency = async () => {
       try {
-        const { getPublishedIdeas } = await import('@/lib/ideasStore');
-        const { fetchRecommendedResources, getGlobalFrequency } = await import('@/lib/firestoreStore');
-        const [ideas, resources, freq] = await Promise.all([
+        const [ideas, resources, freq, heroConfig] = await Promise.all([
           getPublishedIdeas(),
           fetchRecommendedResources(),
           getGlobalFrequency(),
+          getWelcomeHero(),
         ]);
         if (Array.isArray(ideas) && ideas.length > 0) {
           setRawIdeas(ideas);
+          setFeedOrderIds(prev => {
+            if (!prev) return ideas.map(i => i.id);
+            const existingSet = new Set(prev);
+            const brandNew = ideas.filter(i => !existingSet.has(i.id));
+            if (brandNew.length > 0) {
+              const brandNewUnseen = brandNew.filter(i => !viewedIds.has(i.id));
+              const brandNewSeen = brandNew.filter(i => viewedIds.has(i.id));
+              return [...prev, ...shuffle(brandNewUnseen).map(i => i.id), ...shuffle(brandNewSeen).map(i => i.id)];
+            }
+            return prev;
+          });
         }
         if (Array.isArray(resources)) {
           const activeOnly = resources.filter((r) => r.active !== false);
@@ -126,6 +153,11 @@ export default function HomePage() {
         }
         if (typeof freq === 'number' && freq > 0) {
           setGlobalFrequency(freq);
+        }
+        if (heroConfig && heroConfig.enabled !== false) {
+          setWelcomeHeroConfig(heroConfig);
+        } else if (heroConfig && heroConfig.enabled === false) {
+          setWelcomeHeroConfig(null);
         }
       } catch (err) {
         console.error('Failed to load ideas or recommended resources:', err);
@@ -160,35 +192,28 @@ export default function HomePage() {
     }
   }, []);
 
-  // Organize feed: Unseen ideas first, shuffled for discovery.
-  // The hero card (SEED_IDEAS[0], Festival Camera Rental Portrait Service) is permanently pinned at position 0:
-  //  • The LCP element is ALWAYS SEED_IDEAS[0]'s hero image across SSR, hydration, and Firestore background sync.
-  //  • The <link rel="preload"> in layout.js matches the LCP element on every single page load.
-  //  • Firestore background updates enrich the hero card with fresh data without swapping it out.
-  //  • Lighthouse never measures a late-loading Firestore card (e.g. Coding Classes) as LCP.
+  // Persistent feed order for the current page session.
+  // Shuffled once per page refresh on client mount so discovery is fresh,
+  // while frozen against background Firestore syncs to eliminate layout jumps.
   const sortedFeedIdeas = useMemo(() => {
     if (!rawIdeas.length) return [];
 
-    const HERO_ID = pinnedHeroId || SEED_IDEAS[0]?.id || 'idea-print-on-demand';
-    const hero = rawIdeas.find(i => i.id === HERO_ID);
-    const otherIdeas = rawIdeas.filter(i => i.id !== HERO_ID);
-
-    const viewedIds = new Set(getViewedIds());
-    const unseen = otherIdeas.filter(i => !viewedIds.has(i.id));
-    const seen = otherIdeas.filter(i => viewedIds.has(i.id));
-
-    // Deterministic order on SSR and initial hydration to prevent React hydration mismatch
-    if (!isClient) {
-      return hero ? [hero, ...unseen, ...seen] : [...unseen, ...seen];
+    if (!feedOrderIds) {
+      const viewedIds = new Set(getViewedIds());
+      const unseen = rawIdeas.filter(i => !viewedIds.has(i.id));
+      const seen = rawIdeas.filter(i => viewedIds.has(i.id));
+      return [...unseen, ...seen];
     }
 
-    const shuffle = (arr) => [...arr].sort(() => Math.random() - 0.5);
+    const ideaMap = new Map(rawIdeas.map(i => [i.id, i]));
+    const existingOrdered = feedOrderIds
+      .map(id => ideaMap.get(id))
+      .filter(Boolean);
 
-    // Keep hero at position 0; shuffle remaining unseen and seen ideas for discovery
-    return hero
-      ? [hero, ...shuffle(unseen), ...shuffle(seen)]
-      : [...shuffle(unseen), ...shuffle(seen)];
-  }, [rawIdeas, isClient]);
+    const existingIdSet = new Set(feedOrderIds);
+    const unassigned = rawIdeas.filter(i => !existingIdSet.has(i.id));
+    return [...existingOrdered, ...unassigned];
+  }, [rawIdeas, feedOrderIds]);
 
   // Interleave active Recommended Resources into the Ideas feed after every N ideas
 const feedItems = useMemo(() => {
@@ -242,21 +267,6 @@ const feedItems = useMemo(() => {
           if (cardId) {
             markAsViewed(cardId);
 
-            // Track unique idea views for notification prompt
-            if (!viewedIdeaIds.current.has(cardId)) {
-              viewedIdeaIds.current.add(cardId);
-              setViewedIdeaCount((prev) => {
-                const newCount = prev + 1;
-                const dismissed = typeof window !== 'undefined' && localStorage.getItem('notification_prompt_dismissed') === 'true';
-                const shown = typeof window !== 'undefined' && localStorage.getItem('notification_prompt_shown') === 'true';
-                if (newCount === 3 && !dismissed && !shown) {
-                  setShowNotificationPrompt(true);
-                  localStorage.setItem('notification_prompt_shown', 'true');
-                }
-                return newCount;
-              });
-            }
-
             // PWA install prompt trigger: strictly based ONLY on Ideas in feed order
             // Recommended Resources are never counted as ideas
             const ideaIndex = sortedFeedIdeas.findIndex(i => i.id === cardId);
@@ -299,6 +309,176 @@ const feedItems = useMemo(() => {
     return () => { observer.disconnect(); };
   }, [sortedFeedIdeas, triggerOnIdeaView]);
 
+  // --- Dedicated Notification Trigger (Single-fire, decoupled from visibleCount) ---
+  // Sets up ONCE after sortedFeedIdeas is available. Observes ALL idea cards using the
+  // actual scroll container (<main>) as the root so intersection events fire correctly.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!sortedFeedIdeas.length) return;
+    // Already fired this session — do nothing
+    if (notifObserverFiredRef.current) return;
+
+    const triggerNotificationPopup = () => {
+      if (notifObserverFiredRef.current) return;
+      notifObserverFiredRef.current = true;
+
+      if (notifObserverRef.current) {
+        notifObserverRef.current.disconnect();
+        notifObserverRef.current = null;
+      }
+
+      const isGranted = 'Notification' in window && Notification.permission === 'granted';
+      const isSubscribed = localStorage.getItem('notification_prompt_shown') === 'true';
+      const sessionDismissed = sessionStorage.getItem('notification_session_dismissed') === 'true';
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[Notif] Trigger check — granted:', isGranted, 'subscribed:', isSubscribed, 'sessionDismissed:', sessionDismissed);
+      }
+
+      if (!isGranted && !isSubscribed && !sessionDismissed) {
+        setShowNotificationPrompt(true);
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[Notif] ✅ Popup shown after 3 real idea cards.');
+        }
+      }
+    };
+
+    // Defer setup by one frame so <main> is mounted and idea cards are in the DOM
+    const rafId = requestAnimationFrame(() => {
+      const scrollContainer = mainFeedRef.current;
+
+      // IntersectionObserver with <main> as root — fires as cards scroll into view inside it
+      const observer = new IntersectionObserver(
+        (entries) => {
+          if (notifObserverFiredRef.current) return;
+
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            const cardId = entry.target.id?.replace('card-', '');
+            if (!cardId || notifCountedIdsRef.current.has(cardId)) return;
+
+            notifCountedIdsRef.current.add(cardId);
+            observer.unobserve(entry.target);
+
+            if (process.env.NODE_ENV === 'development') {
+              console.log('[Notif] Card seen:', cardId, '— total:', notifCountedIdsRef.current.size);
+            }
+
+            if (notifCountedIdsRef.current.size >= 3) {
+              triggerNotificationPopup();
+            }
+          });
+        },
+        // Use the scroll container as root so intersections are relative to it.
+        // Fall back to viewport (null root) if mainFeedRef isn't attached yet.
+        { root: scrollContainer || null, threshold: 0.4 }
+      );
+
+      notifObserverRef.current = observer;
+
+      // Observe ALL idea cards (not just the visible slice) so new cards entering
+      // the DOM later are picked up without needing to re-run this effect.
+      sortedFeedIdeas.forEach((idea) => {
+        const el = document.getElementById(`card-${idea.id}`);
+        if (el && !notifCountedIdsRef.current.has(idea.id)) {
+          observer.observe(el);
+        }
+      });
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[Notif] Observer attached. Watching', sortedFeedIdeas.length, 'cards.');
+      }
+
+      // Immediate BoundingClientRect fallback: count cards already visible on screen.
+      // This handles the case where cards were rendered before the observer attached.
+      const vh = scrollContainer ? scrollContainer.clientHeight : window.innerHeight;
+      sortedFeedIdeas.forEach((idea) => {
+        if (notifObserverFiredRef.current) return;
+        if (notifCountedIdsRef.current.has(idea.id)) return;
+        const el = document.getElementById(`card-${idea.id}`);
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        // When using a scroll container as root, getBoundingClientRect() is still
+        // relative to the viewport — check if the card is meaningfully visible.
+        if (rect.top >= 0 && rect.top < vh * 0.85 && rect.height > 0) {
+          notifCountedIdsRef.current.add(idea.id);
+          observer.unobserve(el);
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[Notif] Card pre-visible (rect):', idea.id, '— total:', notifCountedIdsRef.current.size);
+          }
+          if (notifCountedIdsRef.current.size >= 3) {
+            triggerNotificationPopup();
+          }
+        }
+      });
+
+      // Scroll listener on the actual scroll container as a belt-and-suspenders fallback
+      const handleScrollCheck = () => {
+        if (notifObserverFiredRef.current) return;
+        // Re-run rect check on scroll in case IntersectionObserver root missed something
+        sortedFeedIdeas.forEach((idea) => {
+          if (notifObserverFiredRef.current) return;
+          if (notifCountedIdsRef.current.has(idea.id)) return;
+          const el = document.getElementById(`card-${idea.id}`);
+          if (!el) return;
+          const rect = el.getBoundingClientRect();
+          if (rect.top >= 0 && rect.top < window.innerHeight * 0.85 && rect.height > 0) {
+            notifCountedIdsRef.current.add(idea.id);
+            if (notifObserverRef.current) observer.unobserve(el);
+            if (notifCountedIdsRef.current.size >= 3) {
+              triggerNotificationPopup();
+            }
+          }
+        });
+      };
+
+      if (scrollContainer) {
+        scrollContainer.addEventListener('scroll', handleScrollCheck, { passive: true });
+      } else {
+        window.addEventListener('scroll', handleScrollCheck, { passive: true });
+      }
+
+      // Store cleanup in a closure-captured var for the effect cleanup
+      notifObserverRef._cleanup = () => {
+        observer.disconnect();
+        notifObserverRef.current = null;
+        if (scrollContainer) {
+          scrollContainer.removeEventListener('scroll', handleScrollCheck);
+        } else {
+          window.removeEventListener('scroll', handleScrollCheck);
+        }
+      };
+    });
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      if (notifObserverRef._cleanup) {
+        notifObserverRef._cleanup();
+        delete notifObserverRef._cleanup;
+      } else if (notifObserverRef.current) {
+        notifObserverRef.current.disconnect();
+        notifObserverRef.current = null;
+      }
+    };
+  // Only re-run when the feed data itself changes, NOT when visibleCount changes.
+  // This prevents the observer from being torn down/rebuilt as the feed expands.
+  }, [sortedFeedIdeas]);
+
+  // As visibleCount grows, newly rendered cards enter the DOM. Register them with
+  // the existing notification observer (notifObserverRef) without recreating it.
+  useEffect(() => {
+    if (!sortedFeedIdeas.length) return;
+    if (notifObserverFiredRef.current) return;
+    const observer = notifObserverRef.current;
+    if (!observer) return;
+
+    sortedFeedIdeas.slice(0, visibleCount).forEach((idea) => {
+      if (notifCountedIdsRef.current.has(idea.id)) return;
+      const el = document.getElementById(`card-${idea.id}`);
+      if (el) observer.observe(el);
+    });
+  }, [sortedFeedIdeas, visibleCount]);
+
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2500);
@@ -308,7 +488,7 @@ const feedItems = useMemo(() => {
     setSavedIds(getSavedIds());
   };
 
-  const mainFeedRef = useRef(null);
+  const mainFeedRef = useRef(null); // Attached to <main> — the actual scroll container
   const scrollPosRef = useRef({ scrollY: 0, containerScrollTop: 0 });
 
   const handleOpenSearch = () => {
@@ -415,38 +595,21 @@ const feedItems = useMemo(() => {
 
       <Toast message={toastMessage} />
 
-      {/* Top AdSense Header Banner (Matches Reference Image) */}
-      <div className="max-w-xl mx-auto w-full px-3 sm:px-4 pt-1 min-h-[66px]">
-        <AdUnit type="header-banner" />
-      </div>
-
-      <style>{`
-        @keyframes feed-slide-up {
-          0% {
-            opacity: 0.85;
-            transform: translateY(24px);
-          }
-          100% {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        .feed-reveal-active {
-          animation: feed-slide-up 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .feed-reveal-active {
-            animation: none !important;
-          }
-        }
-      `}</style>
-
       {/* Native Full-Screen CSS Snap-Scroll Feed Container */}
-      <main className={`flex-1 overflow-y-auto snap-y snap-mandatory min-h-screen ${isFeedRevealed ? 'feed-reveal-active' : ''}`}>
-        {/* Notification Opt‑In Prompt */}
-        {showNotificationPrompt && (
-          <NotificationPrompt isVisible={showNotificationPrompt} onClose={handleNotificationClose} />
+      <main ref={mainFeedRef} className={`flex-1 overflow-y-auto snap-y snap-mandatory min-h-screen ${isFeedRevealed ? 'feed-reveal-active' : ''}`}>
+        {/* Welcome Blueprint Card — permanent introduction to the platform, shown before idea cards, never an idea */}
+        {welcomeHeroConfig && welcomeHeroConfig.enabled !== false && (
+          <WelcomeHero
+            config={welcomeHeroConfig}
+            onInstall={handlePwaInstall}
+            isStandalone={isStandalone}
+            canInstallNative={canInstallNative}
+            isIos={isPwaIos}
+          />
         )}
+
+        {/* Scroll anchor target for Welcome Blueprint Card CTA */}
+        <div id="feed" />
         {feedItems.slice(0, visibleCount).map((item, index) => {
           if (item.type === 'idea') {
             const idea = item.data;
@@ -455,10 +618,11 @@ const feedItems = useMemo(() => {
               <div key={idea.id} className={index > 0 ? "feed-card-lazy" : ""}>
                 <IdeaCard
                   idea={idea}
-                  index={index}
+                  index={index + 1}
                   allIdeas={sortedFeedIdeas}
                   onSaveChange={handleSaveChange}
                   onShowToast={showToast}
+                  showBottomAd={index !== 0}
                   onNavigateToIdea={(slug) => {
                     setVisibleCount(feedItems.length);
                     const target = sortedFeedIdeas.find(i => i.slug === slug);
@@ -473,6 +637,13 @@ const feedItems = useMemo(() => {
                     }
                   }}
                 />
+
+                {/* Ad placement: Positioned strictly below the first complete publisher content (Hero Idea) */}
+                {index === 0 && rawIdeas.length > 0 && (
+                  <div className="max-w-xl mx-auto w-full px-3 sm:px-4 py-2 min-h-[66px]">
+                    <AdUnit type="header-banner" />
+                  </div>
+                )}
               </div>
             );
           }
@@ -506,7 +677,13 @@ const feedItems = useMemo(() => {
             More blueprints are published weekly by our student editorial research desk.
           </p>
         </div>
+
       </main>
+
+      {/* Notification Opt‑In Top Banner (shown ONLY after 3-5 real ideas entered viewport) */}
+      {showNotificationPrompt && (
+        <NotificationPrompt isVisible={showNotificationPrompt} onClose={handleNotificationClose} />
+      )}
 
       {/* One-Time Animated Scroll Guidance Banner */}
       <ScrollGuidance />

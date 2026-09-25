@@ -46,6 +46,8 @@ function safeSet(key, value) {
       try {
         localStorage.removeItem(STORAGE_KEYS.VERSIONS);
         localStorage.removeItem('sei_audit_log_v1');
+        localStorage.removeItem(STORAGE_KEYS.VIEWED);
+        localStorage.removeItem(STORAGE_KEYS.SCROLL_HINT);
         localStorage.setItem(key, JSON.stringify(value));
       } catch (retryError) {
         console.warn(
@@ -55,6 +57,26 @@ function safeSet(key, value) {
       }
     }
   }
+}
+
+// Clean objects so undefined values don't crash Firestore writes
+function sanitizeForFirestore(obj) {
+  if (obj === undefined) return null;
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (obj instanceof Date) return obj;
+  if (obj._methodName || (obj.constructor && obj.constructor.name !== 'Object' && obj.constructor.name !== 'Array')) {
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(sanitizeForFirestore);
+  }
+  const clean = {};
+  for (const [key, val] of Object.entries(obj)) {
+    if (val !== undefined) {
+      clean[key] = sanitizeForFirestore(val);
+    }
+  }
+  return clean;
 }
 
 // Sync likes-count cache so toggleLike can remain callable without async
@@ -75,7 +97,10 @@ export async function getPublishedIdeas() {
   try {
     const { db } = await import('./firebase');
     if (!db) {
-      return safeGet(STORAGE_KEYS.PUBLISHED, SEED_IDEAS);
+      const fallback = safeGet(STORAGE_KEYS.PUBLISHED, SEED_IDEAS);
+      return Array.isArray(fallback)
+        ? fallback.filter(i => i.published !== false && i.status !== 'draft' && i.status !== 'Draft' && !i.deleted)
+        : SEED_IDEAS;
     }
     const { collection, doc, getDocs, setDoc } = await import('firebase/firestore');
     const snap = await getDocs(collection(db, BLUEPRINTS_COLLECTION));
@@ -85,41 +110,54 @@ export async function getPublishedIdeas() {
         id: d.id,
         ...d.data()
       }));
+      // Filter out drafts, unpublished, or soft-deleted blueprints
+      const published = ideas.filter(
+        i => i.published !== false && i.status !== 'draft' && i.status !== 'Draft' && !i.deleted
+      );
       // Populate the sync likes-count cache for toggleLike
       const cache = {};
-      ideas.forEach(i => { if (typeof i.likes === 'number') cache[i.id] = i.likes; });
+      published.forEach(i => { if (typeof i.likes === 'number') cache[i.id] = i.likes; });
       safeSet(LIKES_COUNT_CACHE_KEY, cache);
       // Cache published ideas locally for fast reload
-      safeSet(STORAGE_KEYS.PUBLISHED, ideas);
-      return ideas;
+      safeSet(STORAGE_KEYS.PUBLISHED, published);
+      return published;
     }
 
     const stored = safeGet(STORAGE_KEYS.PUBLISHED, null);
 
     if (stored?.length) {
-      for (const idea of stored) {
+      const validStored = stored.filter(
+        i => i.published !== false && i.status !== 'draft' && i.status !== 'Draft' && !i.deleted
+      );
+      for (const idea of validStored) {
         await setDoc(
           doc(db, BLUEPRINTS_COLLECTION, idea.id),
-          idea
+          sanitizeForFirestore(idea),
+          { merge: true }
         );
       }
       // Populate likes cache from localStorage data too
       const cache = {};
-      stored.forEach(i => { if (typeof i.likes === 'number') cache[i.id] = i.likes; });
+      validStored.forEach(i => { if (typeof i.likes === 'number') cache[i.id] = i.likes; });
       safeSet(LIKES_COUNT_CACHE_KEY, cache);
-      return stored;
+      return validStored;
     }
 
     return SEED_IDEAS;
   } catch (e) {
     console.warn('[ideasStore] getPublishedIdeas fallback:', e);
-    return safeGet(STORAGE_KEYS.PUBLISHED, SEED_IDEAS);
+    const fallback = safeGet(STORAGE_KEYS.PUBLISHED, SEED_IDEAS);
+    return Array.isArray(fallback)
+      ? fallback.filter(i => i.published !== false && i.status !== 'draft' && i.status !== 'Draft' && !i.deleted)
+      : SEED_IDEAS;
   }
 }
 
 export async function savePublishedIdea(idea) {
   const finalIdea = {
     ...idea,
+    status: 'Published',
+    published: true,
     lastUpdated: new Date().toLocaleDateString('en-US', {
       month: 'short',
       year: 'numeric'
@@ -129,13 +167,19 @@ export async function savePublishedIdea(idea) {
   recordVersionHistory(idea.id, finalIdea);
 
   const { db } = await import('./firebase');
-  const { doc, setDoc } = await import('firebase/firestore');
+  const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
   await setDoc(
     doc(db, BLUEPRINTS_COLLECTION, finalIdea.id),
-    finalIdea
+    sanitizeForFirestore({
+      ...finalIdea,
+      status: 'Published',
+      published: true,
+      updatedAt: serverTimestamp()
+    }),
+    { merge: true }
   );
 
-  removeDraftIdea(idea.id);
+  await removeDraftIdea(idea.id);
 
   return finalIdea;
 }
@@ -152,11 +196,10 @@ export async function unpublishIdea(id) {
 
   if (!target) return;
 
-  await deletePublishedIdea(id);
-
-  saveDraftIdea({
+  await saveDraftIdea({
     ...target,
-    status: 'Draft',
+    status: 'draft',
+    published: false,
     unpublishedAt: new Date().toISOString()
   });
 }
@@ -179,14 +222,11 @@ export async function softDeleteIdea(id, origin = 'published') {
   }
 
   if (!target) {
-    const drafts = getDraftIdeas();
+    const drafts = await getDraftIdeas();
     target = drafts.find(i => i.id === id);
 
     if (target) {
-      safeSet(
-        STORAGE_KEYS.DRAFTS,
-        drafts.filter(i => i.id !== id)
-      );
+      await removeDraftIdea(id);
     }
   }
 
@@ -228,7 +268,7 @@ export async function restoreIdea(id) {
   if (target.deletedOrigin === 'published') {
     await savePublishedIdea(cleanTarget);
   } else {
-    saveDraftIdea(cleanTarget);
+    await saveDraftIdea(cleanTarget);
   }
 
   return true;
@@ -240,34 +280,102 @@ export async function permanentDeleteIdea(id) {
   safeSet(STORAGE_KEYS.TRASH, updatedTrash);
 
   await deletePublishedIdea(id);
-  removeDraftIdea(id);
+  await removeDraftIdea(id);
 
   return updatedTrash;
 }
 
-// Drafts manager
-export function getDraftIdeas() {
-  return safeGet(STORAGE_KEYS.DRAFTS, []);
+// Drafts manager — loads directly from Firestore blueprints collection
+export async function getDraftIdeas() {
+  try {
+    const { db } = await import('./firebase');
+    if (!db) {
+      return safeGet(STORAGE_KEYS.DRAFTS, []);
+    }
+    const { collection, getDocs } = await import('firebase/firestore');
+    const snap = await getDocs(collection(db, BLUEPRINTS_COLLECTION));
+
+    if (!snap.empty) {
+      const all = snap.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+      }));
+      // Filter out only drafts that are not soft-deleted
+      const drafts = all.filter(
+        i => (i.status === 'draft' || i.status === 'Draft' || i.published === false) && !i.deleted
+      );
+      // Cache in localStorage as optional offline fallback
+      safeSet(STORAGE_KEYS.DRAFTS, drafts);
+      return drafts;
+    }
+
+    return safeGet(STORAGE_KEYS.DRAFTS, []);
+  } catch (e) {
+    console.warn('[ideasStore] getDraftIdeas fallback:', e);
+    return safeGet(STORAGE_KEYS.DRAFTS, []);
+  }
 }
 
-export function saveDraftIdea(draft) {
-  const current = getDraftIdeas();
-  const index = current.findIndex(d => d.id === draft.id);
+export async function saveDraftIdea(draft, adminEmail = 'Founder Admin') {
+  const draftId = draft.id || `idea_${Date.now()}`;
+  const finalDraft = {
+    ...draft,
+    id: draftId,
+    status: 'draft',
+    published: false,
+    likes: typeof draft.likes === 'number' ? draft.likes : 0,
+  };
 
+  try {
+    const { db } = await import('./firebase');
+    if (db) {
+      const { doc, getDoc, setDoc, serverTimestamp } = await import('firebase/firestore');
+      const docRef = doc(db, BLUEPRINTS_COLLECTION, finalDraft.id);
+      const snap = await getDoc(docRef);
+      const exists = snap.exists();
+
+      const firestorePayload = sanitizeForFirestore({
+        ...finalDraft,
+        status: 'draft',
+        published: false,
+        updatedAt: serverTimestamp(),
+        ...(exists ? {} : { createdAt: serverTimestamp() }),
+      });
+
+      // Update existing document or create new document
+      await setDoc(docRef, firestorePayload, { merge: true });
+
+      // Create Admin Activity Log entry in Firestore
+      const { logAdminAction } = await import('./firestoreStore.js');
+      await logAdminAction({
+        action: 'draft_saved',
+        blueprintId: finalDraft.id,
+        title: finalDraft.title || 'Untitled Draft',
+        entityId: finalDraft.id,
+        entityType: 'Blueprint',
+        adminEmail,
+        details: `Saved draft: "${finalDraft.title || 'Untitled Draft'}"`,
+      });
+    }
+  } catch (err) {
+    console.error('[ideasStore] saveDraftIdea Firestore error:', err);
+  }
+
+  // Update localStorage as optional offline fallback
+  const current = safeGet(STORAGE_KEYS.DRAFTS, []);
+  const index = current.findIndex(d => d.id === finalDraft.id);
   let updated;
 
   if (index >= 0) {
     updated = [...current];
     updated[index] = {
-      ...draft,
-      status: 'Draft',
+      ...finalDraft,
       updatedAt: new Date().toISOString()
     };
   } else {
     updated = [
       {
-        ...draft,
-        status: 'Draft',
+        ...finalDraft,
         updatedAt: new Date().toISOString()
       },
       ...current
@@ -275,15 +383,31 @@ export function saveDraftIdea(draft) {
   }
 
   safeSet(STORAGE_KEYS.DRAFTS, updated);
-  recordVersionHistory(draft.id, draft);
+  recordVersionHistory(finalDraft.id, finalDraft);
 
-  return updated;
+  return finalDraft;
 }
 
-export function removeDraftIdea(id) {
-  const current = getDraftIdeas();
-  const updated = current.filter(d => d.id !== id);
+export async function removeDraftIdea(id) {
+  try {
+    const { db } = await import('./firebase');
+    if (db) {
+      const { doc, getDoc, deleteDoc } = await import('firebase/firestore');
+      const docRef = doc(db, BLUEPRINTS_COLLECTION, id);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.status === 'draft' || data.status === 'Draft' || data.published === false) {
+          await deleteDoc(docRef);
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[ideasStore] removeDraftIdea Firestore error:', err);
+  }
 
+  const current = safeGet(STORAGE_KEYS.DRAFTS, []);
+  const updated = current.filter(d => d.id !== id);
   safeSet(STORAGE_KEYS.DRAFTS, updated);
 
   return updated;

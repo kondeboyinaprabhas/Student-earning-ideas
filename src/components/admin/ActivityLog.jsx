@@ -18,6 +18,7 @@ const ACTION_ICONS = {
   'Restore': { icon: RotateCcw, color: 'text-teal-400 bg-teal-500/10 border-teal-500/20' },
   'Status Change': { icon: CheckCircle2, color: 'text-sky-400 bg-sky-500/10 border-sky-500/20' },
   'Marked Read': { icon: Mail, color: 'text-slate-400 bg-slate-800 border-slate-700' },
+  'draft_saved': { icon: FileText, color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
 };
 
 export default function ActivityLog({

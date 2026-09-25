@@ -27,7 +27,7 @@ function DraftPreviewContent() {
     if (!targetId) return;
 
     (async () => {
-      const drafts = getDraftIdeas();
+      const drafts = await getDraftIdeas();
       const published = await getPublishedIdeas();
       let matched = drafts.find(d => d.id === targetId || d.slug === targetId)
                  || published.find(p => p.id === targetId || p.slug === targetId);

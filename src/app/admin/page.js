@@ -176,8 +176,12 @@ export default function AdminPage() {
 
   // Sync Local Ideas Data
   const refreshLocalData = useCallback(async () => {
-    setPublishedIdeas(await getPublishedIdeas());
-    setDraftIdeas(getDraftIdeas());
+    const [pub, dft] = await Promise.all([
+      getPublishedIdeas(),
+      getDraftIdeas()
+    ]);
+    setPublishedIdeas(pub);
+    setDraftIdeas(dft);
     setScheduledIdeas(getScheduledIdeas());
     setTrashIdeas(getTrashIdeas());
   }, []);
@@ -421,17 +425,27 @@ export default function AdminPage() {
   };
 
   // Save Draft
-  const handleSaveDraft = (adminEmail = 'Founder Admin') => {
-    saveDraftIdea({ ...formData, status: 'Draft', likes: typeof formData.likes === 'number' ? formData.likes : 0 });
-    refreshLocalData();
-    handleLogAction({
-      action: isEditingExisting ? 'Edit' : 'Create',
-      entityId: formData.id,
-      entityType: 'Blueprint',
-      adminEmail,
-      details: `Saved draft: "${formData.title || 'Untitled'}"`
-    });
-    showToast("Saved as draft blueprint.");
+  const handleSaveDraft = async (adminEmail = 'Founder Admin') => {
+    try {
+      const saved = await saveDraftIdea(
+        { 
+          ...formData, 
+          status: 'draft', 
+          published: false, 
+          likes: typeof formData.likes === 'number' ? formData.likes : 0 
+        },
+        adminEmail
+      );
+      if (saved?.id && !formData.id) {
+        setFormData(prev => ({ ...prev, id: saved.id }));
+      }
+      setIsEditingExisting(true);
+      await refreshLocalData();
+      showToast("Saved as draft blueprint.");
+    } catch (err) {
+      console.error('Failed to save draft:', err);
+      showToast("Failed to save draft.");
+    }
   };
 
   // Schedule Post

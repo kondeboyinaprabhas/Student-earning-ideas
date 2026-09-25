@@ -7,7 +7,7 @@ import {
   query, orderBy, limit, startAfter, where, onSnapshot,
   serverTimestamp, Timestamp
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { db } from './firebase.js';
 export { db };
 
 // ─── Collection names ────────────────────────────────────────────────────────
@@ -390,14 +390,18 @@ export function subscribeToNewSubmissions(callback) {
  * Log an admin action.
  * @param {{ action: string, entityId: string, entityType: string, adminEmail: string, details?: string }} entry
  */
-export async function logAdminAction({ action, entityId = '', entityType = '', adminEmail = '', details = '' }) {
+export async function logAdminAction({ action, entityId = '', entityType = '', adminEmail = '', details = '', blueprintId = '', title = '' }) {
   try {
+    const finalBlueprintId = blueprintId || entityId || '';
+    const finalTitle = title || (details && !details.startsWith('Action:') ? details : '') || '';
     await addDoc(collection(db, COLLECTIONS.ACTIVITY_LOG), {
       action,
-      entityId,
-      entityType,
+      entityId: finalBlueprintId,
+      blueprintId: finalBlueprintId,
+      title: finalTitle,
+      entityType: entityType || 'Blueprint',
       adminEmail,
-      details,
+      details: details || `Draft saved: "${finalTitle || finalBlueprintId}"`,
       timestamp: serverTimestamp(),
     });
   } catch (err) {

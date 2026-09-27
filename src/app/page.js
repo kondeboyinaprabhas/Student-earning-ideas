@@ -36,6 +36,64 @@ const PremiumRefreshOverlay = dynamic(() => import('@/components/PremiumRefreshO
 
 const INITIAL_FEED_LIMIT = 4;
 
+/**
+ * Interleaves ideas using strict round-by-round category rotation so that
+ * the same category never appears twice in a row whenever another category
+ * still has ideas available.
+ *
+ * Algorithm (per spec):
+ *   Round 1: one idea from EVERY non-empty category → A1, B1, C1, D1 …
+ *   Round 2: one idea from every still-non-empty category → A2, B2, C2 …
+ *   Round N: repeat until all queues are empty.
+ *
+ * Properties:
+ *  - Within-category order is fully preserved (unseen-first shuffle intact).
+ *  - No ideas are lost, duplicated, or reordered within a category.
+ *  - Deterministic — no randomness introduced here.
+ *  - No end-of-feed dump: a dominant category's extras are interleaved each
+ *    round, never concatenated at the tail.
+ *
+ * @param {Array} ideas - Ordered array of idea objects with a `category` field.
+ * @returns {Array} - Re-ordered array satisfying the round-by-round rotation.
+ */
+function interleavedByCategory(ideas) {
+  if (!ideas || ideas.length === 0) return [];
+
+  // Build per-category queues preserving the original within-category order.
+  const categoryOrder = []; // first-seen insertion order — stable across calls
+  const queues = {};        // { [category]: idea[] }
+
+  for (const idea of ideas) {
+    const cat = idea.category || '__uncategorized__';
+    if (!queues[cat]) {
+      queues[cat] = [];
+      categoryOrder.push(cat);
+    }
+    queues[cat].push(idea);
+  }
+
+  // Single category — passthrough, nothing to interleave.
+  if (categoryOrder.length === 1) return ideas;
+
+  const result = [];
+
+  // One full pass over categoryOrder = one round.
+  // Each round picks at most one idea per category (skips empty queues).
+  // Repeats until addedThisRound === 0, meaning all queues are empty.
+  while (true) {
+    let addedThisRound = 0;
+    for (const cat of categoryOrder) {
+      if (queues[cat].length > 0) {
+        result.push(queues[cat].shift());
+        addedThisRound++;
+      }
+    }
+    if (addedThisRound === 0) break; // all queues exhausted
+  }
+
+  return result;
+}
+
 export default function HomePage() {
   const router = useRouter();
   const {
@@ -198,21 +256,26 @@ export default function HomePage() {
   const sortedFeedIdeas = useMemo(() => {
     if (!rawIdeas.length) return [];
 
+    let ordered;
     if (!feedOrderIds) {
       const viewedIds = new Set(getViewedIds());
       const unseen = rawIdeas.filter(i => !viewedIds.has(i.id));
       const seen = rawIdeas.filter(i => viewedIds.has(i.id));
-      return [...unseen, ...seen];
+      ordered = [...unseen, ...seen];
+    } else {
+      const ideaMap = new Map(rawIdeas.map(i => [i.id, i]));
+      const existingOrdered = feedOrderIds
+        .map(id => ideaMap.get(id))
+        .filter(Boolean);
+
+      const existingIdSet = new Set(feedOrderIds);
+      const unassigned = rawIdeas.filter(i => !existingIdSet.has(i.id));
+      ordered = [...existingOrdered, ...unassigned];
     }
 
-    const ideaMap = new Map(rawIdeas.map(i => [i.id, i]));
-    const existingOrdered = feedOrderIds
-      .map(id => ideaMap.get(id))
-      .filter(Boolean);
-
-    const existingIdSet = new Set(feedOrderIds);
-    const unassigned = rawIdeas.filter(i => !existingIdSet.has(i.id));
-    return [...existingOrdered, ...unassigned];
+    // Apply round-robin category interleaving so no two consecutive ideas
+    // share the same category whenever another category is available.
+    return interleavedByCategory(ordered);
   }, [rawIdeas, feedOrderIds]);
 
   // Interleave active Recommended Resources into the Ideas feed after every N ideas

@@ -37,24 +37,41 @@ const PremiumRefreshOverlay = dynamic(() => import('@/components/PremiumRefreshO
 const INITIAL_FEED_LIMIT = 4;
 
 /**
- * Interleaves ideas using strict round-by-round category rotation so that
- * the same category never appears twice in a row whenever another category
- * still has ideas available.
+ * How many other ideas must appear before the same category may repeat.
+ * e.g. CATEGORY_COOLDOWN = 8 means category X placed at position P
+ * cannot appear again until position P + 9 (8 ideas from other categories
+ * must intervene).
+ */
+const CATEGORY_COOLDOWN = 8;
+
+/**
+ * Orders ideas so that the same category is blocked for CATEGORY_COOLDOWN
+ * positions after each use, spreading dominant categories evenly across the
+ * entire feed instead of clumping them together.
  *
- * Algorithm (per spec):
- *   Round 1: one idea from EVERY non-empty category → A1, B1, C1, D1 …
- *   Round 2: one idea from every still-non-empty category → A2, B2, C2 …
- *   Round N: repeat until all queues are empty.
+ * Algorithm — greedy cooldown scheduling:
+ *  1. Build per-category queues preserving the existing within-category order
+ *     (unseen-first shuffle is the input order and is never disturbed).
+ *  2. At each output position, find every category that:
+ *       (a) is NOT currently on cooldown, AND
+ *       (b) still has ideas remaining.
+ *  3. Among eligible categories, pick the one with the MOST remaining ideas
+ *     (greedy spread — prevents a large category from accumulating at the end).
+ *  4. If EVERY remaining category is on cooldown (edge case: very few cats),
+ *     pick the category whose cooldown expires soonest so the feed never stalls.
+ *  5. After placing an idea from category X at position P:
+ *       cooldownUntil[X] = P + CATEGORY_COOLDOWN + 1
+ *     (X becomes eligible again at that position).
+ *  6. Repeat until all queues are empty.
  *
  * Properties:
- *  - Within-category order is fully preserved (unseen-first shuffle intact).
- *  - No ideas are lost, duplicated, or reordered within a category.
- *  - Deterministic — no randomness introduced here.
- *  - No end-of-feed dump: a dominant category's extras are interleaved each
- *    round, never concatenated at the tail.
+ *  - Within-category order fully preserved.
+ *  - No ideas lost, duplicated, or missing.
+ *  - Deterministic — no randomness introduced.
+ *  - No end-of-feed dump; dominant categories are spread naturally.
  *
- * @param {Array} ideas - Ordered array of idea objects with a `category` field.
- * @returns {Array} - Re-ordered array satisfying the round-by-round rotation.
+ * @param {Array} ideas - Ordered idea objects with a `category` field.
+ * @returns {Array} - Re-ordered array satisfying the cooldown constraint.
  */
 function interleavedByCategory(ideas) {
   if (!ideas || ideas.length === 0) return [];
@@ -76,19 +93,40 @@ function interleavedByCategory(ideas) {
   if (categoryOrder.length === 1) return ideas;
 
   const result = [];
+  // cooldownUntil[cat] = the first result index at which cat is eligible again.
+  // Initialised to 0 so every category is immediately eligible on the first pick.
+  const cooldownUntil = {};
+  for (const cat of categoryOrder) cooldownUntil[cat] = 0;
 
-  // One full pass over categoryOrder = one round.
-  // Each round picks at most one idea per category (skips empty queues).
-  // Repeats until addedThisRound === 0, meaning all queues are empty.
-  while (true) {
-    let addedThisRound = 0;
-    for (const cat of categoryOrder) {
-      if (queues[cat].length > 0) {
-        result.push(queues[cat].shift());
-        addedThisRound++;
-      }
+  while (result.length < ideas.length) {
+    const pos = result.length;
+
+    // Step 1 — eligible: not on cooldown AND has ideas remaining.
+    const eligible = categoryOrder.filter(
+      (c) => cooldownUntil[c] <= pos && queues[c].length > 0
+    );
+
+    let chosen;
+    if (eligible.length > 0) {
+      // Greedy tie-break: prefer the category with the most ideas left.
+      // This prevents any category from accumulating surplus at the end.
+      chosen = eligible.reduce((best, c) =>
+        queues[c].length > queues[best].length ? c : best
+      );
+    } else {
+      // All remaining categories are on cooldown (edge case: very few categories
+      // relative to CATEGORY_COOLDOWN). Pick the one whose cooldown expires
+      // soonest so the feed never stalls.
+      const remaining = categoryOrder.filter((c) => queues[c].length > 0);
+      if (remaining.length === 0) break; // all queues truly empty
+      chosen = remaining.reduce((best, c) =>
+        cooldownUntil[c] < cooldownUntil[best] ? c : best
+      );
     }
-    if (addedThisRound === 0) break; // all queues exhausted
+
+    result.push(queues[chosen].shift());
+    // Impose cooldown: category cannot be reused for CATEGORY_COOLDOWN positions.
+    cooldownUntil[chosen] = pos + CATEGORY_COOLDOWN + 1;
   }
 
   return result;

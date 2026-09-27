@@ -35,8 +35,8 @@ export const metadata = {
     title: "EarnIdeas",
   },
   icons: {
-    icon: "/favicon.ico",
-    apple: "/icons/apple-touch-icon.png",
+    icon: "/icon.png",
+    apple: "/apple-icon.png",
   },
   openGraph: {
     title: "Student Earning Ideas — 100+ Ways to Earn",
@@ -93,3 +93,4 @@ export default function RootLayout({ children }) {
     </html>
   );
 }
+

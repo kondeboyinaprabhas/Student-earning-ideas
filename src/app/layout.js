@@ -104,6 +104,18 @@ export default function RootLayout({ children }) {
           }}
         />
 
+        {/* Monetag Vignette Banner — zone 11942624
+            lazyOnload: fires during browser idle time, after hydration.
+            dangerouslySetInnerHTML is required: inline script injector, no plain src= URL.
+            Does not affect SSR, LCP, or hydration. */}
+        <Script
+          id="monetag-vignette"
+          strategy="lazyOnload"
+          dangerouslySetInnerHTML={{
+            __html: `(function(s){s.dataset.zone='11942624',s.src='https://n6wxm.com/vignette.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))`,
+          }}
+        />
+
       </body>
     </html>
   );

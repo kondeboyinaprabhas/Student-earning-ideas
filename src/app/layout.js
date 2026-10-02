@@ -1,4 +1,5 @@
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import { GoogleAnalytics } from "@next/third-parties/google";
@@ -90,6 +91,18 @@ export default function RootLayout({ children }) {
         {process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID && (
           <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID} />
         )}
+
+        {/* Monetag In-Page Push — zone 11942486
+            lazyOnload: fires during browser idle time, after hydration.
+            dangerouslySetInnerHTML is required: this is an inline script injector,
+            not a plain src= URL. Does not affect SSR, LCP, or hydration. */}
+        <Script
+          id="monetag-inpage-push"
+          strategy="lazyOnload"
+          dangerouslySetInnerHTML={{
+            __html: `(function(s){s.dataset.zone='11942486',s.src='https://nap5k.com/tag.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))`,
+          }}
+        />
 
       </body>
     </html>

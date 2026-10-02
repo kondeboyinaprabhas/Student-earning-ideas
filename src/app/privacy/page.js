@@ -32,7 +32,7 @@ export default function PrivacyPage() {
             <p>
               This Privacy Policy explains how Student Earning Ideas (&quot;we&quot;, &quot;our&quot;, or
               &quot;the platform&quot;) handles information when you visit{' '}
-              <strong>student-earning-ideas.vercel.app</strong>. Please read this page carefully.
+              <strong>studentearningideas.in</strong>. Please read this page carefully.
               By using this website, you acknowledge the practices described here.
             </p>
           </section>

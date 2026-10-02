@@ -24,6 +24,10 @@ export const viewport = {
 };
 
 export const metadata = {
+  metadataBase: new URL("https://studentearningideas.in"),
+  alternates: {
+    canonical: "/",
+  },
   title: "Student Earning Ideas — 100+ Ways to Earn",
   description: "Discover verified student earning blueprints, side hustles, and digital micro-businesses with zero investment. Complete with calculators, startup planners, and action steps.",
   keywords: ["student earning ideas", "ways to earn money as a student", "college side hustles", "online student jobs", "zero investment business for students"],
@@ -41,7 +45,7 @@ export const metadata = {
   openGraph: {
     title: "Student Earning Ideas — 100+ Ways to Earn",
     description: "Step-by-step student business blueprints, micro-gigs, and tools to earn while in college.",
-    url: "https://student-earning-ideas.vercel.app",
+    url: "https://studentearningideas.in/",
     siteName: "Student Earning Ideas",
     locale: "en_IN",
     type: "website",
@@ -80,6 +84,19 @@ export default function RootLayout({ children }) {
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{var t=localStorage.getItem('sei_theme_preference_v1');if(t==='dark'||(t===null&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()`,
+          }}
+        />
+        {/* Official Brand Identity Schema (Organization Structured Data) */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              "name": "Student Earning Ideas",
+              "url": "https://studentearningideas.in/",
+              "logo": "https://studentearningideas.in/icon.png"
+            }),
           }}
         />
       </head>

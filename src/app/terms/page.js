@@ -31,7 +31,7 @@ export default function TermsPage() {
           <section className="space-y-3 text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
             <p>
               By accessing or using Student Earning Ideas at{' '}
-              <strong>student-earning-ideas.vercel.app</strong>, you agree to these Terms of
+              <strong>studentearningideas.in</strong>, you agree to these Terms of
               Service. If you do not agree, please do not use this website.
             </p>
           </section>

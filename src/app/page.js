@@ -167,24 +167,12 @@ export default function HomePage() {
   const notifCountedIdsRef = useRef(new Set());
   const notifObserverRef = useRef(null);
 
-  // Monetag Direct Link — session-persistent Read More click counter.
-  // Counts only explicit "Read More" button clicks (not header toggles or Read Less).
-  // Every 3rd click opens the Direct Link in a new tab.
+  // Monetag Direct Link — triggers ONLY when the user clicks "Read More" on idea
+  // positions 3, 6, 9, 12… (i.e. 1-based position in sortedFeedIdeas is a multiple of 3).
+  // No global counter; no sessionStorage. Condition is evaluated per-card at render time.
   const MONETAG_DIRECT_LINK = 'https://omg10.com/4/11942909';
-  const readMoreCountRef = useRef(
-    typeof window !== 'undefined'
-      ? parseInt(sessionStorage.getItem('_rm_count') || '0', 10)
-      : 0
-  );
   const handleReadMoreClick = () => {
-    const next = readMoreCountRef.current + 1;
-    readMoreCountRef.current = next;
-    if (typeof window !== 'undefined') {
-      sessionStorage.setItem('_rm_count', String(next));
-    }
-    if (next % 3 === 0) {
-      window.open(MONETAG_DIRECT_LINK, '_blank', 'noopener,noreferrer');
-    }
+    window.open(MONETAG_DIRECT_LINK, '_blank', 'noopener,noreferrer');
   };
 
   useEffect(() => {
@@ -707,6 +695,9 @@ const feedItems = useMemo(() => {
         {feedItems.slice(0, visibleCount).map((item, index) => {
           if (item.type === 'idea') {
             const idea = item.data;
+            // 1-based position of this idea in the sorted idea-only sequence.
+            // Resource cards are excluded from the count — only ideas are numbered.
+            const ideaPosition = sortedFeedIdeas.findIndex(i => i.id === idea.id) + 1;
 
             return (
               <div key={idea.id} className={index > 0 ? "feed-card-lazy" : ""}>
@@ -717,7 +708,7 @@ const feedItems = useMemo(() => {
                   onSaveChange={handleSaveChange}
                   onShowToast={showToast}
                   showBottomAd={index !== 0}
-                  onReadMoreClick={handleReadMoreClick}
+                  onReadMoreClick={ideaPosition % 3 === 0 ? handleReadMoreClick : undefined}
                   onNavigateToIdea={(slug) => {
                     setVisibleCount(feedItems.length);
                     const target = sortedFeedIdeas.find(i => i.slug === slug);

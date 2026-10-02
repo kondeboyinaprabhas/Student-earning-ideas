@@ -296,10 +296,7 @@ export default function HomePage() {
 
     let ordered;
     if (!feedOrderIds) {
-      const viewedIds = new Set(getViewedIds());
-      const unseen = rawIdeas.filter(i => !viewedIds.has(i.id));
-      const seen = rawIdeas.filter(i => viewedIds.has(i.id));
-      ordered = [...unseen, ...seen];
+      ordered = rawIdeas;
     } else {
       const ideaMap = new Map(rawIdeas.map(i => [i.id, i]));
       const existingOrdered = feedOrderIds

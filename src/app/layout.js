@@ -1,7 +1,6 @@
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
-import Script from "next/script";
 import { GoogleAnalytics } from "@next/third-parties/google";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -65,6 +64,7 @@ export default function RootLayout({ children }) {
       className={`${jakarta.variable} ${inter.variable} h-full antialiased`}>
       <head>
         <meta name="google-adsense-account" content="ca-pub-8704904144605114" />
+        <meta name="monetag" content="9e434db3099a338771f300378f16430e" />
         <link rel="preconnect" href="https://images.unsplash.com" />
         <link rel="dns-prefetch" href="https://images.unsplash.com" />
         {/* LCP image preload — browser discovers this immediately on parse, before React hydrates.
@@ -76,12 +76,14 @@ export default function RootLayout({ children }) {
           href="https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1200&h=675&q=80"
           fetchPriority="high"
         />
+        {/* Instant dark mode initialization to prevent FOUC */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('sei_theme_preference_v1');if(t==='dark'||(t===null&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()`,
+          }}
+        />
       </head>
       <body className="min-h-full flex flex-col font-sans bg-slate-100 text-slate-900 selection:bg-teal-500 selection:text-white">
-        {/* Instant dark mode initialization to prevent FOUC */}
-        <Script id="theme-init" strategy="beforeInteractive">
-          {`(function(){try{var t=localStorage.getItem('sei_theme_preference_v1');if(t==='dark'||(t===null&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})()`}
-        </Script>
         <ServiceWorkerRegister />
         {children}
 

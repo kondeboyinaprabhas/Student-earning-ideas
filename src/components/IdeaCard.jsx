@@ -25,7 +25,8 @@ export default function IdeaCard({
   onNavigateToIdea,
   allIdeas = [],
   showAds = true,
-  showBottomAd = true
+  showBottomAd = true,
+  onReadMoreClick
 }) {
   // trackIndex moves through the slide strip (0 … N-1 real images + 1 clone of first).
   const [trackIndex, setTrackIndex] = useState(0);
@@ -508,7 +509,10 @@ export default function IdeaCard({
           {/* Collapsed "Read More →" Trigger */}
           {!isExpanded && (
             <button
-              onClick={handleToggleExpand}
+              onClick={() => {
+                if (onReadMoreClick) onReadMoreClick();
+                handleToggleExpand();
+              }}
               className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 mt-2.5 transition-all"
             >
               <span>Read More</span>

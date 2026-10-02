@@ -167,6 +167,26 @@ export default function HomePage() {
   const notifCountedIdsRef = useRef(new Set());
   const notifObserverRef = useRef(null);
 
+  // Monetag Direct Link — session-persistent Read More click counter.
+  // Counts only explicit "Read More" button clicks (not header toggles or Read Less).
+  // Every 3rd click opens the Direct Link in a new tab.
+  const MONETAG_DIRECT_LINK = 'https://omg10.com/4/11942909';
+  const readMoreCountRef = useRef(
+    typeof window !== 'undefined'
+      ? parseInt(sessionStorage.getItem('_rm_count') || '0', 10)
+      : 0
+  );
+  const handleReadMoreClick = () => {
+    const next = readMoreCountRef.current + 1;
+    readMoreCountRef.current = next;
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('_rm_count', String(next));
+    }
+    if (next % 3 === 0) {
+      window.open(MONETAG_DIRECT_LINK, '_blank', 'noopener,noreferrer');
+    }
+  };
+
   useEffect(() => {
     // Clear session dismissal on fresh page load so after a refresh,
     // the user will see the prompt again after viewing another 3-5 real idea cards.
@@ -697,6 +717,7 @@ const feedItems = useMemo(() => {
                   onSaveChange={handleSaveChange}
                   onShowToast={showToast}
                   showBottomAd={index !== 0}
+                  onReadMoreClick={handleReadMoreClick}
                   onNavigateToIdea={(slug) => {
                     setVisibleCount(feedItems.length);
                     const target = sortedFeedIdeas.find(i => i.slug === slug);

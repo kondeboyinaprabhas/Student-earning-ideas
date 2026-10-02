@@ -7,7 +7,6 @@ import dynamic from 'next/dynamic';
 import Header from '@/components/Header';
 import IdeaCard from '@/components/IdeaCard';
 import RecommendedResourceCard from '@/components/RecommendedResourceCard';
-import AdUnit from '@/components/AdUnit';
 import Toast from '@/components/Toast';
 import Footer from '@/components/Footer';
 import { 
@@ -22,7 +21,7 @@ import {
 } from '@/lib/firestoreStore';
 import { SEED_IDEAS } from '@/lib/seedData';
 import { trackEvent } from '@/lib/analytics';
-import { X, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { usePwaInstall } from '@/hooks/usePwaInstall';
 import WelcomeHero from '@/components/WelcomeHero';
 
@@ -161,10 +160,8 @@ export default function HomePage() {
 
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState(null);
-  const [vignetteAdVisible, setVignetteAdVisible] = useState(false);
   const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
   const [maintenance, setMaintenance] = useState({ enabled: false, message: '' });
-  const previousScrollY = useRef(0);
   // Dedicated notification observer & viewport visibility tracker
   const notifObserverFiredRef = useRef(false);
   const notifCountedIdsRef = useRef(new Set());
@@ -179,8 +176,6 @@ export default function HomePage() {
       localStorage.removeItem('notification_prompt_dismissed');
     }
   }, []);
-
-  const [scrollCounter, setScrollCounter] = useState(0);
 
   const handleNotificationClose = () => {
     setShowNotificationPrompt(false);
@@ -358,43 +353,24 @@ const feedItems = useMemo(() => {
 
     const observer = new IntersectionObserver(
       (entries) => {
-        // IntersectionObserver callback with direction-aware vignette ad trigger
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          const cardId = entry.target.id.replace('card-', '');
-          if (cardId) {
-            markAsViewed(cardId);
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const cardId = entry.target.id.replace('card-', '');
+            if (cardId) {
+              markAsViewed(cardId);
 
-            // PWA install prompt trigger: strictly based ONLY on Ideas in feed order
-            // Recommended Resources are never counted as ideas
-            const ideaIndex = sortedFeedIdeas.findIndex(i => i.id === cardId);
-            if (ideaIndex !== -1) {
-              const ideaNumber = ideaIndex + 1;
-              triggerOnIdeaView(ideaNumber);
-            }
+              // PWA install prompt trigger: strictly based ONLY on Ideas in feed order
+              // Recommended Resources are never counted as ideas
+              const ideaIndex = sortedFeedIdeas.findIndex(i => i.id === cardId);
+              if (ideaIndex !== -1) {
+                const ideaNumber = ideaIndex + 1;
+                triggerOnIdeaView(ideaNumber);
+              }
 
-            // Only count when scrolling down
-            const currentScrollY = window.scrollY || document.documentElement.scrollTop || 0;
-            if (currentScrollY > previousScrollY.current) {
-              setScrollCounter((prev) => {
-                const next = prev + 1;
-                // Vignette Ad every 10 ideas (non-intrusive modal simulation)
-                if (next > 0 && next % 10 === 0) {
-                  setVignetteAdVisible(true);
-                }
-                // Update previous scroll position after counting
-                previousScrollY.current = currentScrollY;
-                return next;
-              });
+              trackEvent('view_idea', { ideaId: cardId });
             }
-            // Update previous scroll position even if not counting (e.g., scrolling up)
-            else {
-              previousScrollY.current = currentScrollY;
-            }
-            trackEvent('view_idea', { ideaId: cardId });
           }
-        }
-      });
+        });
       },
       { threshold: 0.6 }
     );
@@ -735,13 +711,6 @@ const feedItems = useMemo(() => {
                     }
                   }}
                 />
-
-                {/* Ad placement: Positioned strictly below the first complete publisher content (Hero Idea) */}
-                {index === 0 && rawIdeas.length > 0 && (
-                  <div className="max-w-xl mx-auto w-full px-3 sm:px-4 py-2 min-h-[66px]">
-                    <AdUnit type="header-banner" />
-                  </div>
-                )}
               </div>
             );
           }
@@ -794,47 +763,6 @@ const feedItems = useMemo(() => {
           ideas={sortedFeedIdeas}
           onSelectIdea={handleSelectIdeaFromSearch}
         />
-      )}
-
-      {/* Google Vignette Ad Simulation (Every 5–6 Ideas) */}
-      {vignetteAdVisible && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white rounded-3xl p-6 max-w-sm w-full text-center space-y-4 shadow-2xl relative">
-            <button
-              onClick={() => setVignetteAdVisible(false)}
-              className="absolute top-3 right-3 text-slate-400 hover:text-slate-700 p-1.5 rounded-full hover:bg-slate-100 transition-colors"
-              aria-label="Close advertisement"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
-              Sponsored • Google Vignette
-            </span>
-
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-sky-400 to-indigo-600 text-white text-3xl flex items-center justify-center mx-auto shadow-md">
-              💼
-            </div>
-
-            <div className="space-y-1">
-              <h3 className="text-base font-bold text-slate-900 leading-snug">
-                Student Micro-Internships & Project Grants 2026
-              </h3>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Connect with funded early-stage startups offering paid weekend remote internships for university students.
-              </p>
-            </div>
-
-            <div className="pt-2">
-              <button
-                onClick={() => setVignetteAdVisible(false)}
-                className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-3 rounded-xl transition-all shadow-md active:scale-98"
-              >
-                Continue to Student Earning Ideas →
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
       {/* PWA Install Prompt Banner — conditionally mounted on demand */}

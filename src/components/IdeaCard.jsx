@@ -12,7 +12,6 @@ import {
 import EngagementBar from './EngagementBar';
 import BusinessTools from './BusinessTools';
 import TrustFeatures from './TrustFeatures';
-import AdUnit from './AdUnit';
 import SpokenWordHighlight from './SpokenWordHighlight';
 import { tts } from '@/lib/ttsService';
 import { trackEvent } from '../lib/analytics';
@@ -584,9 +583,6 @@ export default function IdeaCard({
               {/* Startup Cost Planner (Interactive Budgeting) */}
               <BusinessTools idea={idea} />
 
-              {/* In-Article Ad Unit 1: Inside Read More after Payback Period before Step-by-Step */}
-              {showAds && <AdUnit type="in-article" index={index} className="my-4" />}
-
               {/* 6. Step-by-Step Implementation Guide */}
               {idea.implementationSteps?.length > 0 && (
                 <div className="space-y-3 pt-2">
@@ -693,11 +689,6 @@ export default function IdeaCard({
             </div>
           )}
         </div>
-
-        {/* 2. Restored Original End-of-Article AdSense Placement */}
-        {showAds && showBottomAd && (
-          <AdUnit type={index % 2 === 1 ? "in-feed" : "in-article"} index={index} className="mt-4" />
-        )}
       </div>
     </article>
   );

@@ -64,7 +64,6 @@ export default function RootLayout({ children }) {
       data-scroll-behavior="smooth"
       className={`${jakarta.variable} ${inter.variable} h-full antialiased`}>
       <head>
-        <meta name="google-adsense-account" content="ca-pub-8704904144605114" />
         <meta name="monetag" content="9e434db3099a338771f300378f16430e" />
         <link rel="preconnect" href="https://images.unsplash.com" />
         <link rel="dns-prefetch" href="https://images.unsplash.com" />

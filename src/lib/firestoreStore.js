@@ -52,7 +52,7 @@ export async function setGlobalFrequency(value) {
 
 // ─── Welcome Blueprint Card helpers ─────────────────────────────────────────────
 export const WELCOME_HERO_IMAGE_DEFAULT =
-  'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1200&h=675&q=80';
+  'https://img.sanishtech.com/u/2dcb047b8cb86b516ede256543fb5456.png';
 
 export const DEFAULT_WELCOME_HERO = {
   enabled: true,

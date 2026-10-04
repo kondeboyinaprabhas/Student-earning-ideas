@@ -77,7 +77,7 @@ export default function RootLayout({ children }) {
         <link
           rel="preload"
           as="image"
-          href="https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1200&h=675&q=80"
+          href="https://img.sanishtech.com/u/2dcb047b8cb86b516ede256543fb5456.png"
           fetchPriority="high"
         />
         {/* Instant dark mode initialization to prevent FOUC */}

@@ -17,8 +17,19 @@ function getFirebaseAdminApp() {
   let privateKey = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
 
   if (privateKey) {
-    // Replace escaped newlines if passed in .env string
+    // 1. Trim surrounding whitespace
+    privateKey = privateKey.trim();
+    // 2. Strip one pair of surrounding matching quotes added by some env dashboards (e.g. Vercel)
+    if (
+      (privateKey.startsWith('"') && privateKey.endsWith('"')) ||
+      (privateKey.startsWith("'") && privateKey.endsWith("'"))
+    ) {
+      privateKey = privateKey.slice(1, -1);
+    }
+    // 3. Normalize newlines: handle double-escaped (\\n) first, then single-escaped (\n)
     privateKey = privateKey.replace(/\\n/g, '\n');
+    // 4. Final trim in case quote removal left stray whitespace
+    privateKey = privateKey.trim();
   }
 
   // Explicit verification: all 3 required variables must be provided
@@ -39,4 +50,3 @@ const adminApp = getFirebaseAdminApp();
 export const adminDb = adminApp ? getFirestore(adminApp) : null;
 export const adminAuth = adminApp ? getAuth(adminApp) : null;
 export { FieldValue };
-

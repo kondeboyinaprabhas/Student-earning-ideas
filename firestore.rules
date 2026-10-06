@@ -63,5 +63,14 @@ service cloud.firestore {
       allow create: if true;
       allow read, update, delete: if isAdmin();
     }
+
+    // Creator Referral & Tracking System
+    // Fully protected: Public clients have ZERO read and ZERO write access.
+    // Only authenticated admins in ADMIN_EMAILS can manage referrals.
+    // Public referral clicks are resolved and incremented strictly server-side via Firebase Admin SDK.
+    match /creatorReferrals/{referralId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
   }
 }

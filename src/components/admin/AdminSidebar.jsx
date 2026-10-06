@@ -76,6 +76,13 @@ export default function AdminSidebar({
       icon: LayoutTemplate,
       badge: null,
       description: 'Homepage welcome blueprint card'
+    },
+    {
+      id: 'creator-tracking',
+      label: 'Creator Tracking',
+      icon: Sparkles,
+      badge: null,
+      description: 'Referrals, clicks & attribution'
     }
   ];
 

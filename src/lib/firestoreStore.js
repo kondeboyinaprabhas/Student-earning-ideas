@@ -19,6 +19,7 @@ export const COLLECTIONS = {
   BLUEPRINTS: 'blueprints',
   RECOMMENDED_RESOURCES: 'recommendedResources',
   PUSH_SUBSCRIPTIONS: 'pushSubscriptions',
+  CREATOR_REFERRALS: 'creatorReferrals',
 };
 
 // Global Display Frequency persistence
@@ -515,3 +516,137 @@ export function exportBlueprintsAsCSV(blueprints = []) {
 export function exportBlueprintsAsJSON(blueprints = []) {
   downloadFile(JSON.stringify(blueprints, null, 2), `blueprints_export_${Date.now()}.json`, 'application/json');
 }
+
+// ─── Creator Referral & Tracking System helpers ─────────────────────────────────
+
+/**
+ * Generate a URL-safe, clean slug from creator/campaign name
+ */
+export function generateSafeSlug(text = '') {
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .normalize('NFD') // decompose accents
+    .replace(/[\u0300-\u036f]/g, '') // remove accent marks
+    .replace(/[^a-z0-9\s-]/g, '') // remove non-alphanumeric except space and hyphen
+    .replace(/[\s_-]+/g, '-') // collapse whitespace and underscores into single hyphen
+    .replace(/^-+|-+$/g, ''); // trim leading/trailing hyphens
+}
+
+/**
+ * Fetch all creator referral links (Admin only)
+ */
+export async function getCreatorReferrals() {
+  try {
+    if (!db) return [];
+    const q = query(
+      collection(db, COLLECTIONS.CREATOR_REFERRALS),
+      orderBy('createdAt', 'desc')
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map(docSnap => ({
+      id: docSnap.id,
+      ...docSnap.data()
+    }));
+  } catch (err) {
+    console.error('[Firestore] getCreatorReferrals error:', err);
+    return [];
+  }
+}
+
+/**
+ * Create or save a new creator referral link with collision avoidance
+ */
+export async function createCreatorReferral({
+  creatorName,
+  platform = 'youtube',
+  campaignName = '',
+  customSlug = '',
+  createdBy = ''
+}) {
+  try {
+    if (!db) throw new Error('Database not initialized');
+    const baseSlug = generateSafeSlug(customSlug || campaignName || creatorName) || 'creator';
+    
+    // Check for collisions across all referral documents
+    const q = query(collection(db, COLLECTIONS.CREATOR_REFERRALS));
+    const snap = await getDocs(q);
+    const existingSlugs = new Set(snap.docs.map(d => d.data().slug));
+
+    let uniqueSlug = baseSlug;
+    let counter = 2;
+    while (existingSlugs.has(uniqueSlug)) {
+      uniqueSlug = `${baseSlug}-${counter}`;
+      counter++;
+    }
+
+    const payload = {
+      slug: uniqueSlug,
+      creatorName: creatorName.trim(),
+      platform: (platform || 'other').toLowerCase(),
+      campaignName: (campaignName || '').trim(),
+      active: true,
+      totalClicks: 0,
+      uniqueVisitors: 0,
+      lastClickAt: null,
+      createdAt: serverTimestamp(),
+      createdBy: createdBy || 'admin'
+    };
+
+    const docRef = await addDoc(collection(db, COLLECTIONS.CREATOR_REFERRALS), payload);
+    return { success: true, id: docRef.id, slug: uniqueSlug };
+  } catch (err) {
+    console.error('[Firestore] createCreatorReferral error:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Update an existing creator referral link
+ */
+export async function updateCreatorReferral(id, data) {
+  try {
+    if (!db) throw new Error('Database not initialized');
+    const docRef = doc(db, COLLECTIONS.CREATOR_REFERRALS, id);
+    const cleanData = { ...data };
+    delete cleanData.id;
+    delete cleanData.createdAt;
+    await updateDoc(docRef, cleanData);
+    return { success: true };
+  } catch (err) {
+    console.error('[Firestore] updateCreatorReferral error:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Toggle active state of a creator referral link
+ */
+export async function toggleCreatorReferralStatus(id, currentStatus) {
+  try {
+    if (!db) throw new Error('Database not initialized');
+    const docRef = doc(db, COLLECTIONS.CREATOR_REFERRALS, id);
+    await updateDoc(docRef, { active: !currentStatus });
+    return { success: true, newStatus: !currentStatus };
+  } catch (err) {
+    console.error('[Firestore] toggleCreatorReferralStatus error:', err);
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Delete a creator referral link permanently
+ */
+export async function deleteCreatorReferral(id) {
+  try {
+    if (!db) throw new Error('Database not initialized');
+    const docRef = doc(db, COLLECTIONS.CREATOR_REFERRALS, id);
+    await deleteDoc(docRef);
+    return { success: true };
+  } catch (err) {
+    console.error('[Firestore] deleteCreatorReferral error:', err);
+    return { success: false, error: err.message };
+  }
+}
+

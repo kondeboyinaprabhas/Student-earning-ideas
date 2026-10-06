@@ -96,6 +96,7 @@ import MaintenanceControl from '@/components/admin/MaintenanceControl';
 import AnonymousAnalyticsView from '@/components/admin/AnonymousAnalyticsView';
 import AdminPushBroadcast from '@/components/admin/AdminPushBroadcast';
 import WelcomeHeroManager from '@/components/admin/WelcomeHeroManager';
+import CreatorTrackingManager from '@/components/admin/CreatorTrackingManager';
 import Toast from '@/components/Toast';
 
 // Store & Firebase
@@ -754,6 +755,13 @@ export default function AdminPage() {
               {activeTab === 'welcome-hero' && (
                 <div className="animate-in fade-in">
                   <WelcomeHeroManager showToast={showToast} />
+                </div>
+              )}
+
+              {/* TAB: CREATOR TRACKING */}
+              {activeTab === 'creator-tracking' && (
+                <div className="animate-in fade-in">
+                  <CreatorTrackingManager showToast={showToast} adminEmail={adminEmail} />
                 </div>
               )}
 

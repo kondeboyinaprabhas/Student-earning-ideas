@@ -1,7 +1,7 @@
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
+import MonetagAds from "@/components/MonetagAds";
 import { GoogleAnalytics } from "@next/third-parties/google";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -108,30 +108,8 @@ export default function RootLayout({ children }) {
           <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID} />
         )}
 
-        {/* Monetag In-Page Push — zone 11942486
-            lazyOnload: fires during browser idle time, after hydration.
-            dangerouslySetInnerHTML is required: this is an inline script injector,
-            not a plain src= URL. Does not affect SSR, LCP, or hydration. */}
-        <Script
-          id="monetag-inpage-push"
-          strategy="lazyOnload"
-          dangerouslySetInnerHTML={{
-            __html: `(function(s){s.dataset.zone='11942486',s.src='https://nap5k.com/tag.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))`,
-          }}
-        />
-
-        {/* Monetag Vignette Banner — zone 11942624
-            lazyOnload: fires during browser idle time, after hydration.
-            dangerouslySetInnerHTML is required: inline script injector, no plain src= URL.
-            Does not affect SSR, LCP, or hydration. */}
-        <Script
-          id="monetag-vignette"
-          strategy="lazyOnload"
-          dangerouslySetInnerHTML={{
-            __html: `(function(s){s.dataset.zone='11942624',s.src='https://n6wxm.com/vignette.min.js'})([document.documentElement, document.body].filter(Boolean).pop().appendChild(document.createElement('script')))`,
-          }}
-        />
-
+        {/* Monetag Ads — Vignette enabled on public pages; In-Page Push paused site-wide; all ads excluded from /admin */}
+        <MonetagAds />
       </body>
     </html>
   );

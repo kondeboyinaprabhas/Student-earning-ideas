@@ -1,7 +1,7 @@
 // src/app/r/[slug]/route.js - Public Creator Referral Attribution & Redirect Route
 // Secure Server-Side Execution: Uses Firebase Admin SDK to bypass public security rules while keeping Firestore 100% locked down from the browser.
 import { NextResponse } from 'next/server';
-import { adminDb, FieldValue } from '@/lib/firebaseAdmin';
+import { adminDb, getFreshAdminDb, FieldValue } from '@/lib/firebaseAdmin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -9,8 +9,6 @@ export const dynamic = 'force-dynamic';
 // In-memory 60s cache of active referral slugs to drastically cut Firestore reads during viral traffic spikes
 const slugCache = new Map();
 const CACHE_TTL_MS = 60 * 1000;
-
-// Ensure Firebase Admin is initialized; if not, we cannot proceed with DB ops.
 
 // Conservative regex for bots/crawlers/link-previewers (do NOT count as user visits)
 const BOT_REGEX = /bot|spider|crawl|facebookexternalhit|whatsapp|telegrambot|twitterbot|discordbot|slackbot|applebot|linkedinbot|embedly|quora link preview|pinterest/i;
@@ -24,12 +22,13 @@ export async function GET(request, { params }) {
     // Fallback URL: always normal homepage
     const homepageUrl = new URL('/', request.url);
 
-    // Guard against missing Firestore admin instance (e.g., missing env vars in production)
     if (!slug) {
       return NextResponse.redirect(homepageUrl, 307);
     }
-    if (!adminDb) {
-      console.error('[CreatorTracking] adminDb is not initialized – missing Firebase Admin credentials');
+
+    const db = adminDb || getFreshAdminDb();
+    if (!db) {
+      console.error('[CreatorTracking] db is not initialized – missing Firebase Admin credentials');
       return NextResponse.redirect(homepageUrl, 307);
     }
 
@@ -41,7 +40,7 @@ export async function GET(request, { params }) {
     if (cached && now - cached.timestamp < CACHE_TTL_MS) {
       referralDoc = cached.data;
     } else {
-      const snap = await adminDb
+      const snap = await db
         .collection('creatorReferrals')
         .where('slug', '==', slug)
         .where('active', '==', true)
@@ -115,7 +114,7 @@ export async function GET(request, { params }) {
         });
 
         // Privileged atomic increment using Firebase Admin SDK
-        const docRef = adminDb.collection('creatorReferrals').doc(referralDoc.id);
+        const docRef = db.collection('creatorReferrals').doc(referralDoc.id);
 
         try {
           if (!hasUvCookie) {

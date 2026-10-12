@@ -9,15 +9,15 @@ import {
 } from 'lucide-react';
 import { generateSafeSlug } from '@/lib/firestoreStore';
 import { auth } from '@/lib/firebaseAuth';
-import { getIdToken } from 'firebase/auth';
+import { getIdToken, onAuthStateChanged } from 'firebase/auth';
 
-const PROD_ORIGIN = 'https://studentearningideas.in';
+const PROD_ORIGIN = 'https://www.studentearningideas.in';
 
 // ─── API helpers (talk to /api/admin/creator-referrals, which uses Firebase Admin SDK) ───
 
 async function getAdminIdToken() {
   const user = auth?.currentUser;
-  if (!user) throw new Error('Not authenticated');
+  if (!user) throw new Error('Not authenticated. Please ensure you are logged in as admin.');
   return getIdToken(user, /* forceRefresh= */ false);
 }
 
@@ -32,7 +32,37 @@ async function apiRequest(method, body = null) {
   };
   if (body !== null) opts.body = JSON.stringify(body);
   const res = await fetch('/api/admin/creator-referrals', opts);
-  return res.json();
+
+  const contentType = res.headers.get('content-type') || '';
+  const text = await res.text();
+
+  let data = null;
+  if (text.trim() && contentType.includes('application/json')) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      // Body indicated JSON but could not be parsed
+    }
+  }
+
+  if (!res.ok) {
+    const errorMsg =
+      data?.error ||
+      (text.trim()
+        ? `Server error ${res.status}: ${text.slice(0, 120)}`
+        : `Server error ${res.status}: empty response from server.`);
+    throw new Error(errorMsg);
+  }
+
+  if (!data) {
+    throw new Error(
+      text.trim()
+        ? `Unexpected server response format: ${text.slice(0, 120)}`
+        : `Server returned empty response (HTTP ${res.status}).`
+    );
+  }
+
+  return data;
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -68,7 +98,7 @@ export default function CreatorTrackingManager({ showToast, adminEmail = 'Admin'
       }
     } catch (err) {
       console.error('[CreatorTracking] Load exception:', err);
-      showToast?.('Failed to load creator referrals.');
+      showToast?.(`Failed to load creator referrals: ${err.message}`);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -81,8 +111,6 @@ export default function CreatorTrackingManager({ showToast, adminEmail = 'Admin'
     if (user) {
       loadData();
     } else if (auth) {
-      // If auth hasn't resolved yet, wait for onAuthStateChanged
-      const { onAuthStateChanged } = require('firebase/auth');
       const unsub = onAuthStateChanged(auth, (u) => {
         if (u) {
           loadData();

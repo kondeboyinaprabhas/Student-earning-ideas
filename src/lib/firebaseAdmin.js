@@ -61,21 +61,21 @@ function normalizePrivateKey(rawKey) {
 }
 
 function getFirebaseAdminApp() {
-  const existingApps = getApps();
-  if (existingApps.length > 0) {
-    return existingApps[0];
-  }
-
-  const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
-  const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
-  const privateKey = normalizePrivateKey(process.env.FIREBASE_ADMIN_PRIVATE_KEY);
-
-  // Explicit verification: all 3 required variables must be provided
-  if (!projectId || !clientEmail || !privateKey) {
-    return null;
-  }
-
   try {
+    const existingApps = getApps();
+    if (existingApps.length > 0) {
+      return existingApps[0];
+    }
+
+    const projectId = process.env.FIREBASE_ADMIN_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+    const clientEmail = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
+    const privateKey = normalizePrivateKey(process.env.FIREBASE_ADMIN_PRIVATE_KEY);
+
+    // Explicit verification: all 3 required variables must be provided
+    if (!projectId || !clientEmail || !privateKey) {
+      return null;
+    }
+
     return initializeApp({
       credential: cert({
         projectId,
@@ -107,6 +107,16 @@ function getAdminAuth(app) {
     console.error('[FirebaseAdmin] Failed to get Auth instance:', err?.message);
     return null;
   }
+}
+
+export function getFreshAdminDb() {
+  const app = getFirebaseAdminApp();
+  return getAdminFirestore(app);
+}
+
+export function getFreshAdminAuth() {
+  const app = getFirebaseAdminApp();
+  return getAdminAuth(app);
 }
 
 const adminApp = getFirebaseAdminApp();

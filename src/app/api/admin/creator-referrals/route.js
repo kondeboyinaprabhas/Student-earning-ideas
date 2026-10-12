@@ -5,31 +5,57 @@
 // - Token is verified server-side; only whitelisted admin emails are accepted
 import 'server-only';
 import { NextResponse } from 'next/server';
-import { adminDb, adminAuth, FieldValue } from '@/lib/firebaseAdmin';
+import { adminDb, adminAuth, getFreshAdminDb, getFreshAdminAuth, FieldValue } from '@/lib/firebaseAdmin';
 import { ADMIN_EMAILS } from '@/lib/firebase';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
+function getEffectiveDb() {
+  return adminDb || getFreshAdminDb();
+}
+
+function getEffectiveAuth() {
+  return adminAuth || getFreshAdminAuth();
+}
 
 // ─── Auth helper ─────────────────────────────────────────────────────────────
 
 async function verifyAdminToken(request) {
   try {
-    if (!adminAuth) return null;
+    const auth = getEffectiveAuth();
+    if (!auth) {
+      console.warn('[CreatorReferrals API] Admin Auth instance unavailable');
+      return null;
+    }
     const authHeader = request.headers.get('authorization') || '';
-    if (!authHeader.startsWith('Bearer ')) return null;
+    if (!authHeader.startsWith('Bearer ')) {
+      console.warn('[CreatorReferrals API] Request missing valid Bearer authorization header');
+      return null;
+    }
     const idToken = authHeader.slice(7);
-    const decoded = await adminAuth.verifyIdToken(idToken);
+    const decoded = await auth.verifyIdToken(idToken);
     const email = (decoded.email || '').toLowerCase();
     const isAdmin = ADMIN_EMAILS.some((e) => e.toLowerCase() === email);
-    return isAdmin ? decoded : null;
-  } catch {
+    if (!isAdmin) {
+      console.warn('[CreatorReferrals API] User email not in admin whitelist:', email);
+      return null;
+    }
+    return decoded;
+  } catch (err) {
+    console.error('[CreatorReferrals API] verifyAdminToken error:', err?.message);
     return null;
   }
 }
 
 function checkAdminConfig() {
-  if (!adminDb || !adminAuth) {
+  const db = getEffectiveDb();
+  const auth = getEffectiveAuth();
+  if (!db || !auth) {
+    console.error('[CreatorReferrals API] Firebase Admin credentials missing or uninitialized');
     return NextResponse.json({
       success: false,
-      error: 'Firebase Admin credentials are not configured on the server. Please define FIREBASE_ADMIN_PROJECT_ID, FIREBASE_ADMIN_CLIENT_EMAIL, and FIREBASE_ADMIN_PRIVATE_KEY in .env.local.'
+      error: 'Firebase Admin credentials are not configured on the server. Please ensure FIREBASE_ADMIN_PROJECT_ID, FIREBASE_ADMIN_CLIENT_EMAIL, and FIREBASE_ADMIN_PRIVATE_KEY are set in Vercel environment variables.'
     }, { status: 500 });
   }
   return null;
@@ -43,15 +69,22 @@ export async function GET(request) {
 
   const admin = await verifyAdminToken(request);
   if (!admin) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ success: false, error: 'Unauthorized: Admin authentication required.' }, { status: 401 });
   }
 
+  const db = getEffectiveDb();
 
   try {
-    const snap = await adminDb
-      .collection('creatorReferrals')
-      .orderBy('createdAt', 'desc')
-      .get();
+    let snap;
+    try {
+      snap = await db
+        .collection('creatorReferrals')
+        .orderBy('createdAt', 'desc')
+        .get();
+    } catch (orderErr) {
+      console.warn('[CreatorReferrals API] orderBy createdAt failed, retrieving all records:', orderErr?.message);
+      snap = await db.collection('creatorReferrals').get();
+    }
 
     const referrals = snap.docs.map((d) => {
       const data = d.data();
@@ -64,10 +97,13 @@ export async function GET(request) {
       };
     });
 
+    // In-memory sort fallback to ensure newest always first
+    referrals.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
     return NextResponse.json({ success: true, referrals });
   } catch (err) {
     console.error('[CreatorReferrals API] GET error:', err);
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: err.message || 'Failed to fetch referrals' }, { status: 500 });
   }
 }
 
@@ -79,12 +115,14 @@ export async function POST(request) {
 
   const admin = await verifyAdminToken(request);
   if (!admin) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ success: false, error: 'Unauthorized: Admin authentication required.' }, { status: 401 });
   }
+
+  const db = getEffectiveDb();
 
   try {
     const body = await request.json();
-    const { creatorName, platform = 'youtube', campaignName = '', customSlug = '', createdBy = '' } = body;
+    const { creatorName, platform = 'youtube', campaignName = '', customSlug = '', createdBy = '', destinationUrl = '/' } = body;
 
     if (!creatorName?.trim()) {
       return NextResponse.json({ success: false, error: 'creatorName is required' }, { status: 400 });
@@ -105,7 +143,7 @@ export async function POST(request) {
     const baseSlug = toSlug(customSlug || campaignName || creatorName) || 'creator';
 
     // Collision check
-    const allSnap = await adminDb.collection('creatorReferrals').get();
+    const allSnap = await db.collection('creatorReferrals').get();
     const existingSlugs = new Set(allSnap.docs.map((d) => d.data().slug));
 
     let uniqueSlug = baseSlug;
@@ -120,6 +158,8 @@ export async function POST(request) {
       creatorName: creatorName.trim(),
       platform: (platform || 'other').toLowerCase(),
       campaignName: (campaignName || '').trim(),
+      destinationUrl: destinationUrl || '/',
+      destination: destinationUrl || '/',
       active: true,
       totalClicks: 0,
       uniqueVisitors: 0,
@@ -128,11 +168,11 @@ export async function POST(request) {
       createdBy: createdBy || admin.email || 'admin',
     };
 
-    const docRef = await adminDb.collection('creatorReferrals').add(payload);
+    const docRef = await db.collection('creatorReferrals').add(payload);
     return NextResponse.json({ success: true, id: docRef.id, slug: uniqueSlug });
   } catch (err) {
     console.error('[CreatorReferrals API] POST error:', err);
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: err.message || 'Failed to create referral link' }, { status: 500 });
   }
 }
 
@@ -144,8 +184,10 @@ export async function PATCH(request) {
 
   const admin = await verifyAdminToken(request);
   if (!admin) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ success: false, error: 'Unauthorized: Admin authentication required.' }, { status: 401 });
   }
+
+  const db = getEffectiveDb();
 
   try {
     const body = await request.json();
@@ -155,7 +197,7 @@ export async function PATCH(request) {
       return NextResponse.json({ success: false, error: 'id is required' }, { status: 400 });
     }
 
-    const docRef = adminDb.collection('creatorReferrals').doc(id);
+    const docRef = db.collection('creatorReferrals').doc(id);
 
     if (action === 'toggle') {
       // Toggle active status
@@ -182,7 +224,7 @@ export async function PATCH(request) {
     return NextResponse.json({ success: false, error: 'Unknown action' }, { status: 400 });
   } catch (err) {
     console.error('[CreatorReferrals API] PATCH error:', err);
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: err.message || 'Failed to update referral' }, { status: 500 });
   }
 }
 
@@ -194,8 +236,10 @@ export async function DELETE(request) {
 
   const admin = await verifyAdminToken(request);
   if (!admin) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    return NextResponse.json({ success: false, error: 'Unauthorized: Admin authentication required.' }, { status: 401 });
   }
+
+  const db = getEffectiveDb();
 
   try {
     const body = await request.json();
@@ -205,10 +249,10 @@ export async function DELETE(request) {
       return NextResponse.json({ success: false, error: 'id is required' }, { status: 400 });
     }
 
-    await adminDb.collection('creatorReferrals').doc(id).delete();
+    await db.collection('creatorReferrals').doc(id).delete();
     return NextResponse.json({ success: true });
   } catch (err) {
     console.error('[CreatorReferrals API] DELETE error:', err);
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    return NextResponse.json({ success: false, error: err.message || 'Failed to delete referral' }, { status: 500 });
   }
 }

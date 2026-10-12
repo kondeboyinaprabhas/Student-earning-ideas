@@ -3,9 +3,14 @@
 import { NextResponse } from 'next/server';
 import { adminDb, FieldValue } from '@/lib/firebaseAdmin';
 
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 // In-memory 60s cache of active referral slugs to drastically cut Firestore reads during viral traffic spikes
 const slugCache = new Map();
 const CACHE_TTL_MS = 60 * 1000;
+
+// Ensure Firebase Admin is initialized; if not, we cannot proceed with DB ops.
 
 // Conservative regex for bots/crawlers/link-previewers (do NOT count as user visits)
 const BOT_REGEX = /bot|spider|crawl|facebookexternalhit|whatsapp|telegrambot|twitterbot|discordbot|slackbot|applebot|linkedinbot|embedly|quora link preview|pinterest/i;
@@ -19,7 +24,12 @@ export async function GET(request, { params }) {
     // Fallback URL: always normal homepage
     const homepageUrl = new URL('/', request.url);
 
-    if (!slug || !adminDb) {
+    // Guard against missing Firestore admin instance (e.g., missing env vars in production)
+    if (!slug) {
+      return NextResponse.redirect(homepageUrl, 307);
+    }
+    if (!adminDb) {
+      console.error('[CreatorTracking] adminDb is not initialized – missing Firebase Admin credentials');
       return NextResponse.redirect(homepageUrl, 307);
     }
 
@@ -62,8 +72,17 @@ export async function GET(request, { params }) {
       return NextResponse.redirect(homepageUrl, 307);
     }
 
-    // Prepare response with 307 Temporary Redirect to clean homepage
-    const response = NextResponse.redirect(homepageUrl, 307);
+    // Determine target redirect destination (default to homepage /)
+    const destinationPath = referralDoc.destinationUrl || referralDoc.destination || '/';
+    let targetUrl;
+    try {
+      targetUrl = new URL(destinationPath, request.url);
+    } catch {
+      targetUrl = homepageUrl;
+    }
+
+    // Prepare response with 307 Temporary Redirect to destination
+    const response = NextResponse.redirect(targetUrl, 307);
 
     // 2. Attribution Cookie: sei_ref (30-day first-party cookie)
     response.cookies.set('sei_ref', slug, {
@@ -80,11 +99,11 @@ export async function GET(request, { params }) {
     if (!isBot) {
       // 4. Unique Visitor and Rapid Refresh Handling via First-Party Cookie
       const uvCookieName = `sei_uv_${slug}`;
-      const hasUvCookie = request.cookies.has(uvCookieName);
+      const hasUvCookie = !!request.cookies.get(uvCookieName);
 
       // Rapid-refresh debounce cookie (blocks double-clicks within 10 seconds)
       const debounceCookieName = `sei_deb_${slug}`;
-      const isRapidDebounced = request.cookies.has(debounceCookieName);
+      const isRapidDebounced = !!request.cookies.get(debounceCookieName);
 
       if (!isRapidDebounced) {
         // Set debounce cookie for 10 seconds
@@ -98,31 +117,31 @@ export async function GET(request, { params }) {
         // Privileged atomic increment using Firebase Admin SDK
         const docRef = adminDb.collection('creatorReferrals').doc(referralDoc.id);
 
-        if (!hasUvCookie) {
-          // First-time unique visitor for this referral
-          response.cookies.set(uvCookieName, '1', {
-            path: '/',
-            maxAge: 30 * 24 * 60 * 60, // 30 days attribution window
-            sameSite: 'lax',
-            httpOnly: true
-          });
+        try {
+          if (!hasUvCookie) {
+            // First-time unique visitor for this referral
+            response.cookies.set(uvCookieName, '1', {
+              path: '/',
+              maxAge: 30 * 24 * 60 * 60, // 30 days attribution window
+              sameSite: 'lax',
+              httpOnly: true
+            });
 
-          // Increment both totalClicks and uniqueVisitors
-          docRef.update({
-            totalClicks: FieldValue.increment(1),
-            uniqueVisitors: FieldValue.increment(1),
-            lastClickAt: FieldValue.serverTimestamp()
-          }).catch(err => {
-            console.warn('[CreatorTracking Admin] unique increment error:', err.message);
-          });
-        } else {
-          // Returning visitor on this link — increment only totalClicks
-          docRef.update({
-            totalClicks: FieldValue.increment(1),
-            lastClickAt: FieldValue.serverTimestamp()
-          }).catch(err => {
-            console.warn('[CreatorTracking Admin] click increment error:', err.message);
-          });
+            // Increment both totalClicks and uniqueVisitors
+            await docRef.update({
+              totalClicks: FieldValue.increment(1),
+              uniqueVisitors: FieldValue.increment(1),
+              lastClickAt: FieldValue.serverTimestamp()
+            });
+          } else {
+            // Returning visitor on this link — increment only totalClicks
+            await docRef.update({
+              totalClicks: FieldValue.increment(1),
+              lastClickAt: FieldValue.serverTimestamp()
+            });
+          }
+        } catch (updateErr) {
+          console.warn('[CreatorTracking Admin] increment error:', updateErr?.message);
         }
       }
     }

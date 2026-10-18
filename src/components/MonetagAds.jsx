@@ -8,7 +8,7 @@ import { useEffect } from 'react';
  * =============================================================================
  * MONETAG AD CONFIGURATION
  * =============================================================================
- * - Vignette Banner (Zone: 11942624): ACTIVE site-wide on public pages.
+ * - Vignette Banner (Zone: 11942624): TEMPORARILY PAUSED site-wide.
  * - In-Page Push (Zone: 11942486): TEMPORARILY PAUSED site-wide.
  * - Admin Portal Exclusion: ALL Monetag ads are completely blocked on /admin routes.
  * =============================================================================
@@ -18,7 +18,7 @@ import { useEffect } from 'react';
  * - In-Page Push: Toggle `ENABLE_IN_PAGE_PUSH_ADS` (true = active, false = paused).
  * =============================================================================
  */
-export const ENABLE_VIGNETTE_ADS = true;
+export const ENABLE_VIGNETTE_ADS = false;
 export const ENABLE_IN_PAGE_PUSH_ADS = false;
 
 const IN_PAGE_PUSH_ZONE = '11942486';
@@ -92,7 +92,7 @@ export default function MonetagAds() {
         strayPush.forEach((el) => el.remove());
       }
 
-      // 2. Vignette Banner Injection (Zone 11942624) — ACTIVE site-wide
+      // 2. Vignette Banner Injection (Zone 11942624) — TEMPORARILY PAUSED site-wide
       if (ENABLE_VIGNETTE_ADS) {
         const existingVignette = document.querySelector(
           `script[src*="n6wxm.com"], script[data-zone="${VIGNETTE_ZONE}"]`

@@ -22,6 +22,7 @@ export default function WelcomeHero({ config, onInstall, isStandalone, canInstal
   const [showIosSheet, setShowIosSheet] = useState(false);
   const [showFallbackGuide, setShowFallbackGuide] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [unoptimizedUrls, setUnoptimizedUrls] = useState(() => new Set());
 
   if (!config || config.enabled === false || config.heroEnabled === false) {
     return null;
@@ -112,6 +113,9 @@ export default function WelcomeHero({ config, onInstall, isStandalone, canInstal
           >
             {carouselImages.map((img, i) => {
               const isLcp = i === 0;
+              const isDataUri = typeof img === 'string' && img.startsWith('data:');
+              const shouldBeUnoptimized = isDataUri || unoptimizedUrls.has(img);
+
               return (
                 <div key={i} className="relative w-full h-full shrink-0">
                   <Image
@@ -122,8 +126,12 @@ export default function WelcomeHero({ config, onInstall, isStandalone, canInstal
                     loading={isLcp ? 'eager' : 'lazy'}
                     fetchPriority={isLcp ? 'high' : 'auto'}
                     decoding="async"
-                    // Enable Next.js image optimization for all slides
-                    // Removed unoptimized to allow automatic resizing and compression
+                    unoptimized={shouldBeUnoptimized}
+                    onError={() => {
+                      if (!unoptimizedUrls.has(img)) {
+                        setUnoptimizedUrls((prev) => new Set(prev).add(img));
+                      }
+                    }}
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 580px, 600px"
                     className="object-cover select-none pointer-events-none"
                     draggable={false}

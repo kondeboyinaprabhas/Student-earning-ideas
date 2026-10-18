@@ -122,7 +122,8 @@ export default function WelcomeHero({ config, onInstall, isStandalone, canInstal
                     loading={isLcp ? 'eager' : 'lazy'}
                     fetchPriority={isLcp ? 'high' : 'auto'}
                     decoding="async"
-                    unoptimized={isLcp}
+                    // Enable Next.js image optimization for all slides
+                    // Removed unoptimized to allow automatic resizing and compression
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 580px, 600px"
                     className="object-cover select-none pointer-events-none"
                     draggable={false}
